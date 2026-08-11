@@ -12,7 +12,10 @@ interface PDFViewerProps {
 }
 
 const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
+  const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
   const [pageCount, setPageCount] = useState(0);
@@ -61,34 +64,106 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
 
   // Render the current page
   useEffect(() => {
+    let isMounted = true;
     const renderPage = async () => {
-      if (!pdfDoc || !canvasRef.current) return;
+      if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
       
+      // Cancel any ongoing render task before starting a new one
+      if (renderTaskRef.current) {
+        try {
+          await renderTaskRef.current.cancel();
+        } catch (e) {
+          // ignore
+        }
+      }
+
       try {
         const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale });
+        if (!isMounted) return;
+
+        // 1. High-DPI Rendering (Razor Sharp)
+        const cssViewport = page.getViewport({ scale });
+        const pixelRatio = Math.max(2, window.devicePixelRatio || 1);
+        const renderViewport = page.getViewport({ scale: scale * pixelRatio });
+        
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
+        const textLayer = textLayerRef.current;
         
         if (!context) return;
         
-        canvas.height = viewport.height;
-        canvas.width = viewport.width;
+        canvas.width = Math.floor(renderViewport.width);
+        canvas.height = Math.floor(renderViewport.height);
+        canvas.style.width = Math.floor(cssViewport.width) + 'px';
+        canvas.style.height = Math.floor(cssViewport.height) + 'px';
+
+        const wrapper = canvas.parentElement;
+        if (wrapper) {
+            wrapper.style.width = Math.floor(cssViewport.width) + 'px';
+            wrapper.style.height = Math.floor(cssViewport.height) + 'px';
+        }
 
         const renderContext = {
           canvasContext: context,
-          viewport: viewport,
+          viewport: renderViewport, 
+          canvas: canvas
         };
         
-        await page.render(renderContext).promise;
+        const renderTask = page.render(renderContext);
+        renderTaskRef.current = renderTask;
+        await renderTask.promise;
+        renderTaskRef.current = null;
+        
+        if (!isMounted) return;
+
+        // 2. TextLayer Support
+        textLayer.innerHTML = '';
+        textLayer.style.setProperty('--scale-factor', cssViewport.scale.toString());
+        
+        const textLayerObj = new pdfjsLib.TextLayer({
+            textContentSource: page.streamTextContent(),
+            container: textLayer,
+            viewport: cssViewport 
+        });
+        await textLayerObj.render();
+
       } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'RenderingCancelledException') {
+            return; // Normal behavior when zooming rapidly
+        }
         console.error('Error rendering page:', err);
         setErrorMsg('Render Error: ' + (err instanceof Error ? err.message : String(err)));
       }
     };
 
     renderPage();
+    
+    return () => {
+        isMounted = false;
+    };
   }, [pdfDoc, pageNum, scale]);
+
+  // Handle Trackpad Pinch Zoom
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      // Trackpad pinch-to-zoom triggers wheel events with ctrlKey = true
+      if (e.ctrlKey) {
+        e.preventDefault();
+        // deltaY is negative when pinching out (zoom in), positive when pinching in (zoom out)
+        const zoomFactor = e.deltaY * -0.01;
+        setScale((prev) => {
+          const newScale = prev + zoomFactor;
+          return Math.min(Math.max(0.5, newScale), 5.0); // Limit zoom between 50% and 500%
+        });
+      }
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+    }
+  }, []);
 
   const goToPrevPage = () => setPageNum((prev) => Math.max(1, prev - 1));
   const goToNextPage = () => setPageNum((prev) => Math.min(pageCount, prev + 1));
@@ -127,7 +202,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
       </div>
 
       {/* Canvas Area */}
-      <div className="pdf-canvas-container">
+      <div className="pdf-canvas-container" ref={containerRef}>
         {errorMsg ? (
           <div className="error-message" style={{ color: '#ff6b6b', padding: '2rem', textAlign: 'center', background: '#2a1e1e', borderRadius: '8px', margin: 'auto' }}>
             <h3 style={{ marginBottom: '1rem' }}>Something went wrong</h3>
@@ -136,7 +211,10 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
         ) : loading ? (
           <div className="loading-spinner">Loading Document...</div>
         ) : (
-          <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+          <div className="pdf-page-wrapper">
+            <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+            <div ref={textLayerRef} className="textLayer"></div>
+          </div>
         )}
       </div>
     </div>
