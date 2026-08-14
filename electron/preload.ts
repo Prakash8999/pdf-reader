@@ -22,3 +22,10 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
   // You can expose other APTs you need here.
   // ...
 })
+
+contextBridge.exposeInMainWorld('dbApi', {
+  upsertPdf: (filePath: string) => ipcRenderer.invoke('db:upsertPdf', filePath),
+  updatePage: (filePath: string, pageNumber: number) => ipcRenderer.invoke('db:updatePage', filePath, pageNumber),
+  updateLocation: (filePath: string, location: string) => ipcRenderer.invoke('db:updateLocation', filePath, location),
+  getLibrary: () => ipcRenderer.invoke('db:getLibrary'),
+})

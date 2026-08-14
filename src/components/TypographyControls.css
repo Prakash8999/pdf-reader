@@ -1,0 +1,104 @@
+.typography-overlay {
+  position: absolute;
+  top: 60px;
+  right: 20px;
+  background: var(--bg-surface, #242424);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 8px;
+  width: 300px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 1000;
+  color: var(--text-primary, #e2e8f0);
+}
+
+.typography-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.typography-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color, #333);
+  padding-bottom: 0.5rem;
+}
+
+.typography-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setting-group label {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #94a3b8);
+  font-weight: 600;
+}
+
+.theme-options, .mode-options {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.theme-btn, .mode-btn {
+  flex: 1;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #444);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: all 0.2s;
+}
+
+.theme-btn.light { background: #f8f9fa; color: #212529; }
+.theme-btn.sepia { background: #f4ecd8; color: #5b4636; }
+.theme-btn.dark  { background: #212529; color: #f8f9fa; }
+
+.theme-btn.active, .mode-btn.active {
+  border-color: var(--accent-primary, #3b82f6);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+.mode-btn {
+  background: var(--bg-tertiary, #1a1a1a);
+}
+
+.mode-btn:hover {
+  background: var(--bg-hover, #333);
+}
+
+.size-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.size-controls input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent-primary, #3b82f6);
+}
+
+.font-select {
+  padding: 0.5rem;
+  border-radius: 6px;
+  background: var(--bg-tertiary, #1a1a1a);
+  color: var(--text-primary, #e2e8f0);
+  border: 1px solid var(--border-color, #444);
+  font-family: inherit;
+}

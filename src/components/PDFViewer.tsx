@@ -9,15 +9,16 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface PDFViewerProps {
   filePath: string;
+  initialPage?: number;
 }
 
-const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
+const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [pageNum, setPageNum] = useState(1);
+  const [pageNum, setPageNum] = useState(initialPage || 1);
   const [pageCount, setPageCount] = useState(0);
   const [scale, setScale] = useState(1.2);
   const [loading, setLoading] = useState(true);
@@ -45,7 +46,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
           const doc = await loadingTask.promise;
           setPdfDoc(doc);
           setPageCount(doc.numPages);
-          setPageNum(1);
+          setPageNum(initialPage || 1);
         } else {
           setErrorMsg('Failed to load PDF buffer via IPC');
         }
@@ -165,6 +166,15 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
     }
   }, []);
 
+  // Sync page changes to DB
+  useEffect(() => {
+    if (!pdfDoc) return;
+    const timer = setTimeout(() => {
+      window.dbApi.updatePage(filePath, pageNum);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [pageNum, filePath, pdfDoc]);
+
   const goToPrevPage = () => setPageNum((prev) => Math.max(1, prev - 1));
   const goToNextPage = () => setPageNum((prev) => Math.min(pageCount, prev + 1));
   const zoomIn = () => setScale((prev) => prev + 0.2);
@@ -198,6 +208,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath }) => {
           <button onClick={zoomIn} className="icon-btn">
             <ZoomIn size={20} />
           </button>
+        </div>
+      </div>
+
+      <div className="pdf-footer">
+        <div className="progress-bar-container">
+          <div className="progress-bar-fill" style={{ width: `${pageCount > 0 ? (pageNum / pageCount) * 100 : 0}%` }}></div>
         </div>
       </div>
 

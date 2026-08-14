@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary } from './database'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -65,10 +66,12 @@ app.on('activate', () => {
 })
 
 app.whenReady().then(() => {
+  initDatabase();
+
   ipcMain.handle('dialog:openFile', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openFile'],
-      filters: [{ name: 'PDF Documents', extensions: ['pdf'] }]
+      filters: [{ name: 'E-Books & PDFs', extensions: ['pdf', 'epub'] }]
     })
     if (canceled) {
       return null
@@ -85,6 +88,44 @@ app.whenReady().then(() => {
     } catch (error) {
       console.error("Error reading file:", error)
       return null
+    }
+  })
+
+  ipcMain.handle('db:upsertPdf', async (_event, filePath) => {
+    try {
+      return upsertPdf(filePath);
+    } catch (error) {
+      console.error("Error upserting PDF:", error);
+      return null;
+    }
+  })
+
+  ipcMain.handle('db:updatePage', async (_event, filePath, pageNumber) => {
+    try {
+      updateLastPageRead(filePath, pageNumber);
+      return true;
+    } catch (error) {
+      console.error("Error updating last page:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:updateLocation', async (_event, filePath, location) => {
+    try {
+      updateLastLocation(filePath, location);
+      return true;
+    } catch (error) {
+      console.error("Error updating last location:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:getLibrary', async () => {
+    try {
+      return getLibrary();
+    } catch (error) {
+      console.error("Error getting library:", error);
+      return [];
     }
   })
 
