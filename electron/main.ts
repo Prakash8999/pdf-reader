@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary, updateMetadata, getAllCategories, searchLibrary, deletePdf, updateReadingStats } from './database'
+import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary, updateMetadata, getAllCategories, searchLibrary, deletePdf, updateReadingStats, getAnnotations, addAnnotation, updateAnnotationNote, updateAnnotationColor, deleteAnnotation } from './database'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -177,6 +177,55 @@ app.whenReady().then(() => {
     }
   })
 
+  // Annotation IPCs
+  ipcMain.handle('db:getAnnotations', async (_event, filePath) => {
+    try {
+      return getAnnotations(filePath);
+    } catch (error) {
+      console.error("Error getting annotations:", error);
+      return [];
+    }
+  })
+
+  ipcMain.handle('db:addAnnotation', async (_event, annotation) => {
+    try {
+      return addAnnotation(annotation);
+    } catch (error) {
+      console.error("Error adding annotation:", error);
+      return null;
+    }
+  })
+
+  ipcMain.handle('db:updateAnnotationNote', async (_event, id, noteContent) => {
+    try {
+      updateAnnotationNote(id, noteContent);
+      return true;
+    } catch (error) {
+      console.error("Error updating annotation note:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:updateAnnotationColor', async (_event, id, color) => {
+    try {
+      updateAnnotationColor(id, color);
+      return true;
+    } catch (error) {
+      console.error("Error updating annotation color:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:deleteAnnotation', async (_event, id) => {
+    try {
+      deleteAnnotation(id);
+      return true;
+    } catch (error) {
+      console.error("Error deleting annotation:", error);
+      return false;
+    }
+  })
+
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openDirectory']
@@ -210,6 +259,31 @@ app.whenReady().then(() => {
     }
     await scan(dirPath);
     return results;
+  })
+
+  // Dictionary setup
+  let dictionaryCache: Record<string, string> | null = null;
+
+  ipcMain.handle('dictionary:define', async (_event, word: string) => {
+    try {
+      if (!dictionaryCache) {
+        const dictPath = path.join(process.env.VITE_PUBLIC || '', 'dictionary.json');
+        if (fs.existsSync(dictPath)) {
+          const content = await fs.promises.readFile(dictPath, 'utf-8');
+          dictionaryCache = JSON.parse(content);
+        } else {
+          return "Offline dictionary file not found.";
+        }
+      }
+      const lookup = word.toUpperCase();
+      if (dictionaryCache && dictionaryCache[lookup]) {
+        return dictionaryCache[lookup];
+      }
+      return null;
+    } catch (err) {
+      console.error("Dictionary error:", err);
+      return "Error loading dictionary.";
+    }
   })
 
   createWindow()

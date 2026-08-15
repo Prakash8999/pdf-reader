@@ -1,0 +1,108 @@
+.note-popover-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10001;
+}
+
+.note-popover {
+  position: fixed;
+  width: 280px;
+  background: rgba(30, 30, 30, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  z-index: 10002;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: popInNote 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.note-header {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: #e0e0e0;
+}
+
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #a0a0a0;
+  line-height: 1;
+}
+.close-btn:hover {
+  color: #ffffff;
+}
+
+.note-popover textarea {
+  width: 100%;
+  border: none;
+  padding: 12px 14px;
+  resize: none;
+  background: transparent;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  min-height: 80px;
+}
+
+.note-popover textarea::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.note-footer {
+  padding: 8px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.save-btn {
+  background: #6c5ce7;
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 13px;
+  transition: opacity 0.2s;
+}
+.save-btn:hover {
+  opacity: 0.85;
+}
+
+.delete-btn {
+  background: transparent;
+  color: #ff6b6b;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.delete-btn:hover {
+  background: rgba(255, 107, 107, 0.15);
+}
+
+@keyframes popInNote {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

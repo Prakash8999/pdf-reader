@@ -17,6 +17,17 @@ export interface PdfFile {
   words_read?: number;
 }
 
+export interface Annotation {
+  id?: number;
+  file_path: string;
+  type: 'highlight' | 'underline' | 'strikethrough';
+  color: string;
+  locator: string; // JSON array of rects for PDF, CFI string for EPUB
+  text_content: string;
+  note_content: string | null;
+  created_at?: string;
+}
+
 let db: Database.Database;
 
 export function initDatabase() {
@@ -52,6 +63,20 @@ export function initDatabase() {
     CREATE TABLE IF NOT EXISTS categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT UNIQUE NOT NULL
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS annotations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_path TEXT NOT NULL,
+      type TEXT NOT NULL,
+      color TEXT NOT NULL,
+      locator TEXT NOT NULL,
+      text_content TEXT,
+      note_content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(file_path) REFERENCES pdf_files(file_path) ON DELETE CASCADE
     );
   `);
 
@@ -188,4 +213,41 @@ export function updateReadingStats(filePath: string, timeIncrement: number, word
     WHERE file_path = ?
   `);
   stmt.run(timeIncrement, wordsIncrement, filePath);
+}
+
+// Annotation CRUD operations
+export function getAnnotations(filePath: string): Annotation[] {
+  const stmt = db.prepare(`SELECT * FROM annotations WHERE file_path = ? ORDER BY created_at ASC`);
+  return stmt.all(filePath) as Annotation[];
+}
+
+export function addAnnotation(annotation: Annotation): Annotation {
+  const stmt = db.prepare(`
+    INSERT INTO annotations (file_path, type, color, locator, text_content, note_content)
+    VALUES (?, ?, ?, ?, ?, ?)
+    RETURNING *;
+  `);
+  return stmt.get(
+    annotation.file_path, 
+    annotation.type, 
+    annotation.color, 
+    annotation.locator, 
+    annotation.text_content, 
+    annotation.note_content
+  ) as Annotation;
+}
+
+export function updateAnnotationNote(id: number, noteContent: string | null): void {
+  const stmt = db.prepare(`UPDATE annotations SET note_content = ? WHERE id = ?`);
+  stmt.run(noteContent, id);
+}
+
+export function updateAnnotationColor(id: number, color: string): void {
+  const stmt = db.prepare(`UPDATE annotations SET color = ? WHERE id = ?`);
+  stmt.run(color, id);
+}
+
+export function deleteAnnotation(id: number): void {
+  const stmt = db.prepare(`DELETE FROM annotations WHERE id = ?`);
+  stmt.run(id);
 }

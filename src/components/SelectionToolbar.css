@@ -1,0 +1,105 @@
+.selection-toolbar {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  margin-top: -12px;
+  background: rgba(30, 30, 30, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  z-index: 10000;
+  pointer-events: auto;
+  gap: 6px;
+  animation: popIn 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.selection-toolbar::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px 6px 0;
+  border-style: solid;
+  border-color: rgba(30, 30, 30, 0.85) transparent transparent transparent;
+}
+
+.selection-toolbar .st-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.selection-toolbar .st-divider {
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.15);
+  margin: 0 2px;
+}
+
+.selection-toolbar .color-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+}
+
+.selection-toolbar .color-btn:hover {
+  transform: scale(1.2);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.selection-toolbar .color-btn.yellow { background-color: #ffe066; }
+.selection-toolbar .color-btn.green { background-color: #69db7c; }
+.selection-toolbar .color-btn.blue { background-color: #74c0fc; }
+.selection-toolbar .color-btn.pink { background-color: #f783ac; }
+
+.selection-toolbar .tool-btn {
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: background 0.15s;
+}
+
+.selection-toolbar .tool-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.selection-toolbar .tool-btn.underline { text-decoration: underline; text-underline-offset: 3px; }
+.selection-toolbar .tool-btn.strikethrough { text-decoration: line-through; }
+
+.selection-toolbar .action-btn {
+  background: transparent;
+  border: none;
+  color: #e0e0e0;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.selection-toolbar .action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translate(-50%, -90%) scale(0.92); }
+  to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}

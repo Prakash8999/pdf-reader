@@ -33,4 +33,11 @@ contextBridge.exposeInMainWorld('dbApi', {
   searchLibrary: (query: string, tags: string[]) => ipcRenderer.invoke('db:searchLibrary', query, tags),
   deletePdf: (filePath: string) => ipcRenderer.invoke('db:deletePdf', filePath),
   updateReadingStats: (filePath: string, timeIncrement: number, wordsIncrement: number) => ipcRenderer.invoke('db:updateReadingStats', filePath, timeIncrement, wordsIncrement),
+  
+  // Annotation API
+  getAnnotations: (filePath: string) => ipcRenderer.invoke('db:getAnnotations', filePath),
+  addAnnotation: (annotation: any) => ipcRenderer.invoke('db:addAnnotation', annotation),
+  updateAnnotationNote: (id: number, noteContent: string | null) => ipcRenderer.invoke('db:updateAnnotationNote', id, noteContent),
+  updateAnnotationColor: (id: number, color: string) => ipcRenderer.invoke('db:updateAnnotationColor', id, color),
+  deleteAnnotation: (id: number) => ipcRenderer.invoke('db:deleteAnnotation', id),
 })

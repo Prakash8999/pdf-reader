@@ -12,5 +12,12 @@ interface Window {
     searchLibrary: (query: string, tags: string[]) => Promise<any[]>;
     deletePdf: (filePath: string) => Promise<boolean>;
     updateReadingStats: (filePath: string, timeIncrement: number, wordsIncrement: number) => Promise<boolean>;
+    
+    // Annotation API
+    getAnnotations: (filePath: string) => Promise<any[]>;
+    addAnnotation: (annotation: any) => Promise<any>;
+    updateAnnotationNote: (id: number, noteContent: string | null) => Promise<boolean>;
+    updateAnnotationColor: (id: number, color: string) => Promise<boolean>;
+    deleteAnnotation: (id: number) => Promise<boolean>;
   };
 }
