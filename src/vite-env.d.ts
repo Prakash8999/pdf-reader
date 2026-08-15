@@ -11,5 +11,6 @@ interface Window {
     getCategories: () => Promise<string[]>;
     searchLibrary: (query: string, tags: string[]) => Promise<any[]>;
     deletePdf: (filePath: string) => Promise<boolean>;
+    updateReadingStats: (filePath: string, timeIncrement: number, wordsIncrement: number) => Promise<boolean>;
   };
 }

@@ -13,6 +13,8 @@ export interface PdfFile {
   author: string | null;
   cover_image: string | null;
   tags: string | null;
+  time_spent_seconds?: number;
+  words_read?: number;
 }
 
 let db: Database.Database;
@@ -43,6 +45,8 @@ export function initDatabase() {
   try { db.exec(`ALTER TABLE pdf_files ADD COLUMN author TEXT;`); } catch (e) {}
   try { db.exec(`ALTER TABLE pdf_files ADD COLUMN cover_image TEXT;`); } catch (e) {}
   try { db.exec(`ALTER TABLE pdf_files ADD COLUMN tags TEXT;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE pdf_files ADD COLUMN time_spent_seconds INTEGER DEFAULT 0;`); } catch (e) {}
+  try { db.exec(`ALTER TABLE pdf_files ADD COLUMN words_read INTEGER DEFAULT 0;`); } catch (e) {}
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -174,4 +178,14 @@ export function searchLibrary(searchQuery: string, selectedTags: string[]): PdfF
 export function deletePdf(filePath: string): void {
   const stmt = db.prepare(`DELETE FROM pdf_files WHERE file_path = ?`);
   stmt.run(filePath);
+}
+
+export function updateReadingStats(filePath: string, timeIncrement: number, wordsIncrement: number): void {
+  const stmt = db.prepare(`
+    UPDATE pdf_files
+    SET time_spent_seconds = COALESCE(time_spent_seconds, 0) + ?,
+        words_read = COALESCE(words_read, 0) + ?
+    WHERE file_path = ?
+  `);
+  stmt.run(timeIncrement, wordsIncrement, filePath);
 }

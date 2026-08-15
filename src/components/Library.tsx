@@ -9,6 +9,8 @@ interface Book {
   author?: string | null;
   cover_image?: string | null;
   tags?: string | null;
+  time_spent_seconds?: number;
+  words_read?: number;
 }
 
 interface LibraryProps {
@@ -65,7 +67,9 @@ const Library: React.FC<LibraryProps> = ({ books, onOpenBook, onAddBook, onImpor
         title: b.title || b.file_path.split('\\').pop()?.split('/').pop() || 'Unknown Book',
         author: b.author || null,
         cover_image: b.cover_image || null,
-        tags: b.tags || null
+        tags: b.tags || null,
+        time_spent_seconds: b.time_spent_seconds,
+        words_read: b.words_read
       })));
     }, 300);
     return () => clearTimeout(timeoutId);
@@ -172,6 +176,12 @@ const Library: React.FC<LibraryProps> = ({ books, onOpenBook, onAddBook, onImpor
               <div className="book-info">
                 <h3 className="book-title" title={book.title}>{book.title}</h3>
                 {book.author && <p className="book-author" title={book.author}>{book.author}</p>}
+                
+                {book.time_spent_seconds !== undefined && book.time_spent_seconds > 60 && (
+                  <div className="book-stats-mini" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    ⏱️ {Math.floor(book.time_spent_seconds / 3600)}h {Math.floor((book.time_spent_seconds % 3600) / 60)}m
+                  </div>
+                )}
                 
                 {book.tags && (
                   <div className="book-tags">

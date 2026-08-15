@@ -8,6 +8,8 @@ interface Book {
   author?: string | null;
   cover_image?: string | null;
   tags?: string | null;
+  time_spent_seconds?: number;
+  words_read?: number;
 }
 
 interface EditMetadataModalProps {
@@ -102,6 +104,14 @@ const EditMetadataModal: React.FC<EditMetadataModalProps> = ({ book, onClose, on
                 <input type="text" value={author} onChange={e => setAuthor(e.target.value)} />
               </div>
               
+              <div className="form-group stats-group">
+                <label>Reading Statistics</label>
+                <div className="stats-display" style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)', fontSize: '0.9rem', backgroundColor: 'var(--bg-primary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <span>⏱️ {book.time_spent_seconds ? `${Math.floor(book.time_spent_seconds / 3600)}h ${Math.floor((book.time_spent_seconds % 3600) / 60)}m` : '0h 0m'}</span>
+                  <span>📖 {book.words_read || 0} words est.</span>
+                </div>
+              </div>
+
               <div className="form-group tag-group">
                 <label>Categories & Tags</label>
                 <div className="tag-manager">

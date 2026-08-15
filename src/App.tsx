@@ -4,6 +4,9 @@ import PDFViewer from './components/PDFViewer';
 import EpubViewer from './components/EpubViewer';
 import Library from './components/Library';
 import MetadataExtractor from './components/MetadataExtractor';
+import SettingsModal from './components/SettingsModal';
+import PomodoroTimer from './components/PomodoroTimer';
+import { Minimize2 } from 'lucide-react';
 import './App.css';
 
 interface Book {
@@ -14,6 +17,8 @@ interface Book {
   author: string | null;
   cover_image: string | null;
   tags: string | null;
+  time_spent_seconds?: number;
+  words_read?: number;
 }
 
 function App() {
@@ -23,6 +28,47 @@ function App() {
   const [initialLocation, setInitialLocation] = useState<string | number>(1);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isPomodoroOpen, setIsPomodoroOpen] = useState(false);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('readzen_theme') || 'dark');
+  const [isFocusMode, setFocusMode] = useState(false);
+  const [isBlueLightFilterEnabled, setBlueLightFilterEnabled] = useState(false);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('readzen_theme', theme);
+  }, [theme]);
+
+  const [lastActivity, setLastActivity] = useState(Date.now());
+
+  useEffect(() => {
+    const handleActivity = () => setLastActivity(Date.now());
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('scroll', handleActivity, true);
+    
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('scroll', handleActivity, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (view === 'reader' && currentFile) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        if (now - lastActivity < 2 * 60 * 1000) {
+          window.dbApi.updateReadingStats(currentFile, 10, 40).catch(console.error);
+        }
+      }, 10000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [view, currentFile, lastActivity]);
 
   const fetchLibrary = async () => {
     const library = await window.dbApi.getLibrary();
@@ -33,7 +79,9 @@ function App() {
       last_location: b.last_location,
       author: b.author || null,
       cover_image: b.cover_image || null,
-      tags: b.tags || null
+      tags: b.tags || null,
+      time_spent_seconds: b.time_spent_seconds,
+      words_read: b.words_read
     }));
     setBooks(mappedBooks);
 
@@ -84,7 +132,9 @@ function App() {
       last_location: b.last_location,
       author: b.author || null,
       cover_image: b.cover_image || null,
-      tags: b.tags || null
+      tags: b.tags || null,
+      time_spent_seconds: b.time_spent_seconds,
+      words_read: b.words_read
     })));
 
     setCurrentFile(filePath);
@@ -123,12 +173,14 @@ function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${isFocusMode ? 'focus-mode-active' : ''}`}>
       <Sidebar
         onAddBook={handleAddBook}
         currentFile={currentFile}
         onGoToLibrary={goToLibrary}
         onGoToReader={goToReader}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenPomodoro={() => setIsPomodoroOpen(true)}
         currentView={view}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={toggleSidebar}
@@ -156,6 +208,34 @@ function App() {
       
       {/* Hidden component to extract covers and metadata in the background */}
       <MetadataExtractor books={books} onMetadataExtracted={fetchLibrary} />
+
+      {isFocusMode && (
+        <button 
+          className="exit-focus-btn" 
+          onClick={() => setFocusMode(false)}
+          title="Exit Focus Mode"
+        >
+          <Minimize2 size={24} />
+        </button>
+      )}
+
+      <div className={`blue-light-overlay ${isBlueLightFilterEnabled ? 'active' : ''}`}></div>
+      
+      <SettingsModal 
+        isOpen={isSettingsOpen} 
+        onClose={() => setIsSettingsOpen(false)}
+        theme={theme}
+        setTheme={setTheme}
+        isFocusMode={isFocusMode}
+        setFocusMode={setFocusMode}
+        isBlueLightFilterEnabled={isBlueLightFilterEnabled}
+        setBlueLightFilterEnabled={setBlueLightFilterEnabled}
+      />
+
+      <PomodoroTimer 
+        isOpen={isPomodoroOpen}
+        onClose={() => setIsPomodoroOpen(false)}
+      />
     </div>
   );
 }

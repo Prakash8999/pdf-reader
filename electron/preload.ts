@@ -32,4 +32,5 @@ contextBridge.exposeInMainWorld('dbApi', {
   getCategories: () => ipcRenderer.invoke('db:getCategories'),
   searchLibrary: (query: string, tags: string[]) => ipcRenderer.invoke('db:searchLibrary', query, tags),
   deletePdf: (filePath: string) => ipcRenderer.invoke('db:deletePdf', filePath),
+  updateReadingStats: (filePath: string, timeIncrement: number, wordsIncrement: number) => ipcRenderer.invoke('db:updateReadingStats', filePath, timeIncrement, wordsIncrement),
 })

@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary, updateMetadata, getAllCategories, searchLibrary, deletePdf } from './database'
+import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary, updateMetadata, getAllCategories, searchLibrary, deletePdf, updateReadingStats } from './database'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -154,6 +154,16 @@ app.whenReady().then(() => {
       return true;
     } catch (error) {
       console.error("Error deleting PDF:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:updateReadingStats', async (_event, filePath, timeIncrement, wordsIncrement) => {
+    try {
+      updateReadingStats(filePath, timeIncrement, wordsIncrement);
+      return true;
+    } catch (error) {
+      console.error("Error updating reading stats:", error);
       return false;
     }
   })

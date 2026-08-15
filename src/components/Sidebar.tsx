@@ -1,18 +1,20 @@
 import React from 'react';
-import { Book, Library as LibraryIcon, PlusCircle, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Book, Library as LibraryIcon, PlusCircle, PanelLeftClose, PanelLeftOpen, Settings, Timer } from 'lucide-react';
 import './Sidebar.css';
 
 interface SidebarProps {
   onAddBook: () => void;
   onGoToLibrary: () => void;
   onGoToReader: () => void;
+  onOpenSettings: () => void;
+  onOpenPomodoro: () => void;
   currentFile: string | null;
   currentView: 'library' | 'reader';
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ onAddBook, onGoToLibrary, onGoToReader, currentFile, currentView, isCollapsed, onToggleCollapse }) => {
+const Sidebar: React.FC<SidebarProps> = ({ onAddBook, onGoToLibrary, onGoToReader, onOpenSettings, onOpenPomodoro, currentFile, currentView, isCollapsed, onToggleCollapse }) => {
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
@@ -48,6 +50,24 @@ const Sidebar: React.FC<SidebarProps> = ({ onAddBook, onGoToLibrary, onGoToReade
       </nav>
 
       <div className="sidebar-footer">
+        <div 
+          className="nav-item"
+          onClick={onOpenPomodoro}
+          title={isCollapsed ? "Timer" : ""}
+          style={{ marginBottom: '0.5rem' }}
+        >
+          <Timer size={20} />
+          {!isCollapsed && <span>Timer</span>}
+        </div>
+        <div 
+          className="nav-item"
+          onClick={onOpenSettings}
+          title={isCollapsed ? "Settings" : ""}
+          style={{ marginBottom: '1rem' }}
+        >
+          <Settings size={20} />
+          {!isCollapsed && <span>Settings</span>}
+        </div>
         <button onClick={onAddBook} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: isCollapsed ? '0.75rem 0' : '0.75rem 1.5rem' }} title={isCollapsed ? "Add Book" : ""}>
           <PlusCircle size={18} />
           {!isCollapsed && <span>Add Book</span>}
