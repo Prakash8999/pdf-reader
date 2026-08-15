@@ -7,5 +7,9 @@ interface Window {
     updatePage: (filePath: string, pageNumber: number) => Promise<boolean>;
     updateLocation: (filePath: string, location: string) => Promise<boolean>;
     getLibrary: () => Promise<any[]>;
+    updateMetadata: (filePath: string, metadata: { title?: string, author?: string, coverImage?: string, tags?: string }) => Promise<boolean>;
+    getCategories: () => Promise<string[]>;
+    searchLibrary: (query: string, tags: string[]) => Promise<any[]>;
+    deletePdf: (filePath: string) => Promise<boolean>;
   };
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Type, Settings, Maximize, FileText } from 'lucide-react';
+import { Settings, Maximize, FileText } from 'lucide-react';
 import './TypographyControls.css';
 
 export interface TypographySettings {

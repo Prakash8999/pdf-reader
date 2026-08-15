@@ -28,4 +28,8 @@ contextBridge.exposeInMainWorld('dbApi', {
   updatePage: (filePath: string, pageNumber: number) => ipcRenderer.invoke('db:updatePage', filePath, pageNumber),
   updateLocation: (filePath: string, location: string) => ipcRenderer.invoke('db:updateLocation', filePath, location),
   getLibrary: () => ipcRenderer.invoke('db:getLibrary'),
+  updateMetadata: (filePath: string, metadata: any) => ipcRenderer.invoke('db:updateMetadata', filePath, metadata),
+  getCategories: () => ipcRenderer.invoke('db:getCategories'),
+  searchLibrary: (query: string, tags: string[]) => ipcRenderer.invoke('db:searchLibrary', query, tags),
+  deletePdf: (filePath: string) => ipcRenderer.invoke('db:deletePdf', filePath),
 })

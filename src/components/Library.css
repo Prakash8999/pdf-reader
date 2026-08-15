@@ -7,12 +7,170 @@
 
 .library-header {
   margin-bottom: 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .library-header h1 {
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
+  margin: 0;
+}
+
+.library-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  width: 300px;
+  position: relative;
+  transition: border-color 0.2s ease;
+}
+
+.search-bar:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.search-icon {
+  color: var(--text-secondary);
+  margin-right: 0.5rem;
+}
+
+.search-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.clear-search {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 50%;
+}
+
+.clear-search:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.filter-dropdown-container {
+  position: relative;
+}
+
+.filter-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-toggle-btn:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.filter-toggle-btn.active {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.filter-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.75rem;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  padding: 1.25rem;
+  width: 260px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.empty-filters {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.filter-option:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.filter-option input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.clear-filters-btn {
+  margin-top: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  color: #ef4444;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.clear-filters-btn:hover {
+  color: #f87171;
 }
 
 .books-grid {
@@ -32,28 +190,94 @@
   transform: translateY(-6px);
 }
 
-.book-cover-placeholder {
+.book-cover-container {
+  position: relative;
   height: 240px;
-  background: linear-gradient(145deg, var(--bg-secondary), var(--bg-tertiary));
+  width: 100%;
   border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  text-align: center;
   box-shadow: var(--shadow-sm);
   margin-bottom: 0.75rem;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  overflow: hidden;
+  background-color: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.book-card:hover .book-cover-placeholder {
+.book-card:hover .book-cover-container {
   box-shadow: var(--shadow-md);
   border-color: var(--accent-primary);
 }
 
+.book-cover-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.book-cover-placeholder {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(145deg, var(--bg-secondary), var(--bg-tertiary));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  text-align: center;
+  gap: 1rem;
+}
+
+.format-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.format-badge.pdf {
+  background-color: #ef4444; /* red for PDF */
+}
+
+.format-badge.epub {
+  background-color: #3b82f6; /* blue for EPUB */
+}
+
+.edit-book-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.edit-book-btn:hover {
+  background-color: var(--accent-primary);
+}
+
+.book-card:hover .edit-book-btn {
+  opacity: 1;
+}
+
 .book-cover-title {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-secondary);
   display: -webkit-box;
@@ -91,27 +315,55 @@
   transition: color 0.2s ease;
 }
 
+.add-book-remark {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  margin-top: 0.25rem;
+}
+
 .add-book-card:hover .add-book-text {
   color: var(--accent-primary);
 }
 
 .book-info {
   padding: 0 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .book-title {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 0.25rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.book-format {
-  font-size: 0.75rem;
+.book-author {
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-tags {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.tag-pill {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
 }

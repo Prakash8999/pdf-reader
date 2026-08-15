@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary } from './database'
+import { initDatabase, upsertPdf, updateLastPageRead, updateLastLocation, getLibrary, updateMetadata, getAllCategories, searchLibrary, deletePdf } from './database'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -127,6 +127,79 @@ app.whenReady().then(() => {
       console.error("Error getting library:", error);
       return [];
     }
+  })
+
+  ipcMain.handle('db:updateMetadata', async (_event, filePath, metadata) => {
+    try {
+      updateMetadata(filePath, metadata);
+      return true;
+    } catch (error) {
+      console.error("Error updating metadata:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:getCategories', async () => {
+    try {
+      return getAllCategories();
+    } catch (error) {
+      console.error("Error getting categories:", error);
+      return [];
+    }
+  })
+
+  ipcMain.handle('db:deletePdf', async (_event, filePath) => {
+    try {
+      deletePdf(filePath);
+      return true;
+    } catch (error) {
+      console.error("Error deleting PDF:", error);
+      return false;
+    }
+  })
+
+  ipcMain.handle('db:searchLibrary', async (_event, query: string, tags: string[]) => {
+    try {
+      return searchLibrary(query, tags);
+    } catch (error) {
+      console.error("Error searching library:", error);
+      return [];
+    }
+  })
+
+  ipcMain.handle('dialog:openDirectory', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    if (canceled) {
+      return null
+    } else {
+      return filePaths[0]
+    }
+  })
+
+  ipcMain.handle('file:scanDirectory', async (_event, dirPath) => {
+    const results: string[] = [];
+    async function scan(directory: string) {
+      try {
+        const files = await fs.promises.readdir(directory, { withFileTypes: true });
+        for (const file of files) {
+          const fullPath = path.join(directory, file.name);
+          if (file.isDirectory()) {
+            await scan(fullPath);
+          } else if (file.isFile()) {
+            const ext = path.extname(fullPath).toLowerCase();
+            if (ext === '.pdf' || ext === '.epub') {
+              results.push(fullPath);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error scanning directory:", err);
+      }
+    }
+    await scan(dirPath);
+    return results;
   })
 
   createWindow()

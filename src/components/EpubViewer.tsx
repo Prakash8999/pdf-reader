@@ -79,7 +79,7 @@ const EpubViewer: React.FC<EpubViewerProps> = ({ filePath, initialLocation }) =>
 
     book.ready.then(() => {
       return book.locations.generate(1600);
-    }).then((locations) => {
+    }).then((_locations) => {
       setLoading(false);
       if (currentLocation) {
         setProgress(book.locations.percentageFromCfi(currentLocation) * 100);

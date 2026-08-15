@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import PDFViewer from './components/PDFViewer';
 import EpubViewer from './components/EpubViewer';
 import Library from './components/Library';
+import MetadataExtractor from './components/MetadataExtractor';
 import './App.css';
 
 interface Book {
@@ -10,6 +11,9 @@ interface Book {
   title: string;
   last_page_read?: number;
   last_location?: string;
+  author: string | null;
+  cover_image: string | null;
+  tags: string | null;
 }
 
 function App() {
@@ -18,22 +22,28 @@ function App() {
   const [view, setView] = useState<'library' | 'reader'>('library');
   const [initialLocation, setInitialLocation] = useState<string | number>(1);
 
-  useEffect(() => {
-    const fetchLibrary = async () => {
-      const library = await window.dbApi.getLibrary();
-      const mappedBooks = library.map((b: any) => ({
-        filePath: b.file_path,
-        title: b.title || b.file_path.split('\\').pop()?.split('/').pop() || 'Unknown Book',
-        last_page_read: b.last_page_read,
-        last_location: b.last_location
-      }));
-      setBooks(mappedBooks);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-      if (mappedBooks.length > 0) {
-        setCurrentFile(mappedBooks[0].filePath);
-        setInitialLocation(mappedBooks[0].last_location || mappedBooks[0].last_page_read || 1);
-      }
-    };
+  const fetchLibrary = async () => {
+    const library = await window.dbApi.getLibrary();
+    const mappedBooks = library.map((b: any) => ({
+      filePath: b.file_path,
+      title: b.title || b.file_path.split('\\').pop()?.split('/').pop() || 'Unknown Book',
+      last_page_read: b.last_page_read,
+      last_location: b.last_location,
+      author: b.author || null,
+      cover_image: b.cover_image || null,
+      tags: b.tags || null
+    }));
+    setBooks(mappedBooks);
+
+    if (mappedBooks.length > 0 && !currentFile) {
+      setCurrentFile(mappedBooks[0].filePath);
+      setInitialLocation(mappedBooks[0].last_location || mappedBooks[0].last_page_read || 1);
+    }
+  };
+
+  useEffect(() => {
     fetchLibrary();
   }, []);
 
@@ -41,6 +51,25 @@ function App() {
     const filePath = await window.ipcRenderer.invoke('dialog:openFile');
     if (filePath) {
       await handleOpenBook(filePath);
+    }
+  };
+
+  const handleImportFolder = async () => {
+    const dirPath = await window.ipcRenderer.invoke('dialog:openDirectory');
+    if (!dirPath) return;
+
+    const files = await window.ipcRenderer.invoke('file:scanDirectory', dirPath);
+    if (!files || files.length === 0) {
+      alert(`No PDF or EPUB files found in that folder.`);
+      return;
+    }
+
+    const confirm = window.confirm(`Found ${files.length} supported books in the selected folder. Would you like to import them?`);
+    if (confirm) {
+      for (const file of files) {
+         await window.dbApi.upsertPdf(file);
+      }
+      fetchLibrary();
     }
   };
 
@@ -52,12 +81,33 @@ function App() {
       filePath: b.file_path,
       title: b.title || b.file_path.split('\\').pop()?.split('/').pop() || 'Unknown Book',
       last_page_read: b.last_page_read,
-      last_location: b.last_location
+      last_location: b.last_location,
+      author: b.author || null,
+      cover_image: b.cover_image || null,
+      tags: b.tags || null
     })));
 
     setCurrentFile(filePath);
     setInitialLocation(pdfState?.last_location || pdfState?.last_page_read || 1);
     setView('reader');
+  };
+
+  const handleUpdateMetadata = async (filePath: string, metadata: any) => {
+    const success = await window.dbApi.updateMetadata(filePath, metadata);
+    if (success) {
+      fetchLibrary();
+    }
+  };
+
+  const handleDeleteBook = async (filePath: string) => {
+    const success = await window.dbApi.deletePdf(filePath);
+    if (success) {
+      if (currentFile === filePath) {
+        setCurrentFile(null);
+        setView('library');
+      }
+      fetchLibrary();
+    }
   };
 
   const goToLibrary = () => {
@@ -68,6 +118,10 @@ function App() {
     if (currentFile) setView('reader');
   };
 
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
   return (
     <div className="app-container">
       <Sidebar
@@ -76,10 +130,19 @@ function App() {
         onGoToLibrary={goToLibrary}
         onGoToReader={goToReader}
         currentView={view}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
       />
       <main className="main-content">
         {view === 'library' ? (
-          <Library books={books} onOpenBook={handleOpenBook} onAddBook={handleAddBook} />
+          <Library 
+            books={books} 
+            onOpenBook={handleOpenBook} 
+            onAddBook={handleAddBook} 
+            onImportFolder={handleImportFolder}
+            onUpdateMetadata={handleUpdateMetadata}
+            onDeleteBook={handleDeleteBook}
+          />
         ) : currentFile ? (
           currentFile.toLowerCase().endsWith('.epub')
             ? <EpubViewer key={currentFile} filePath={currentFile} initialLocation={typeof initialLocation === 'string' ? initialLocation : undefined} />
@@ -90,6 +153,9 @@ function App() {
           </div>
         )}
       </main>
+      
+      {/* Hidden component to extract covers and metadata in the background */}
+      <MetadataExtractor books={books} onMetadataExtracted={fetchLibrary} />
     </div>
   );
 }

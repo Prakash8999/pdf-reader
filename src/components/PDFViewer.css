@@ -4,6 +4,7 @@
   height: 100%;
   width: 100%;
   background-color: var(--bg-primary);
+  overflow: hidden;
 }
 
 .pdf-toolbar {
@@ -48,6 +49,18 @@
 .icon-btn:hover:not(:disabled) {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+.icon-btn.active {
+  background-color: var(--bg-tertiary);
+  color: var(--accent-primary);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background-color: var(--border-color);
+  margin: 0 0.5rem;
 }
 
 .icon-btn:disabled {
@@ -101,6 +114,19 @@
 
 .pdf-canvas {
   display: block;
+}
+
+.vertical-pages-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  align-items: center;
+  width: 100%;
+}
+
+.vertical-page {
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  background-color: #fff; /* fallback placeholder color */
 }
 
 /* Self-contained TextLayer Styles */

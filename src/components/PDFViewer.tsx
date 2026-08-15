@@ -1,9 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, BookOpen, ScrollText } from 'lucide-react';
 import './PDFViewer.css';
 
-// Set up PDF.js worker - use ?url import for Vite asset resolution
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -12,77 +11,49 @@ interface PDFViewerProps {
   initialPage?: number;
 }
 
-const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible }: any) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(!isVertical);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
-  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [pageNum, setPageNum] = useState(initialPage || 1);
-  const [pageCount, setPageCount] = useState(0);
-  const [scale, setScale] = useState(1.2);
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Extract filename
-  const fileName = filePath.split('\\').pop()?.split('/').pop() || 'Document';
-
-  // Load the PDF Document
   useEffect(() => {
-    const loadPDF = async () => {
-      setLoading(true);
-      setErrorMsg(null);
-      try {
-        // Fetch file as base64 string via IPC
-        const base64 = await window.ipcRenderer.invoke('file:read', filePath);
-        if (base64 && typeof base64 === 'string') {
-          // Decode base64 to binary
-          const binaryString = atob(base64);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          const loadingTask = pdfjsLib.getDocument({ data: bytes });
-          const doc = await loadingTask.promise;
-          setPdfDoc(doc);
-          setPageCount(doc.numPages);
-          setPageNum(initialPage || 1);
-        } else {
-          setErrorMsg('Failed to load PDF buffer via IPC');
-        }
-      } catch (err: unknown) {
-        console.error('Error loading PDF:', err);
-        setErrorMsg('Load Error: ' + (err instanceof Error ? err.message : String(err)));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (filePath) {
-      loadPDF();
+    if (!isVertical) {
+      setIsVisible(true);
+      return;
     }
-  }, [filePath]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            if (onVisible) onVisible(pageNum);
+          } else {
+            // Unload to save memory in large PDFs
+            setIsVisible(false);
+          }
+        });
+      },
+      { rootMargin: '100% 0px', threshold: 0 } // Load a full viewport ahead
+    );
+    if (wrapperRef.current) observer.observe(wrapperRef.current);
+    return () => observer.disconnect();
+  }, [isVertical, pageNum, onVisible]);
 
-  // Render the current page
   useEffect(() => {
     let isMounted = true;
     const renderPage = async () => {
-      if (!pdfDoc || !canvasRef.current || !textLayerRef.current) return;
+      if (!isVisible || !pdfDoc || !canvasRef.current || !textLayerRef.current) return;
       
-      // Cancel any ongoing render task before starting a new one
       if (renderTaskRef.current) {
-        try {
-          await renderTaskRef.current.cancel();
-        } catch (e) {
-          // ignore
-        }
+        try { renderTaskRef.current.cancel(); } catch (e) {}
       }
 
       try {
         const page = await pdfDoc.getPage(pageNum);
         if (!isMounted) return;
 
-        // 1. High-DPI Rendering (Razor Sharp)
         const cssViewport = page.getViewport({ scale });
         const pixelRatio = Math.max(2, window.devicePixelRatio || 1);
         const renderViewport = page.getViewport({ scale: scale * pixelRatio });
@@ -104,11 +75,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
             wrapper.style.height = Math.floor(cssViewport.height) + 'px';
         }
 
-        const renderContext = {
-          canvasContext: context,
-          viewport: renderViewport, 
-          canvas: canvas
-        };
+        const renderContext = { canvasContext: context, viewport: renderViewport, canvas: canvas };
         
         const renderTask = page.render(renderContext);
         renderTaskRef.current = renderTask;
@@ -117,7 +84,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
         
         if (!isMounted) return;
 
-        // 2. TextLayer Support
         textLayer.innerHTML = '';
         textLayer.style.setProperty('--scale-factor', cssViewport.scale.toString());
         
@@ -127,38 +93,90 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
             viewport: cssViewport 
         });
         await textLayerObj.render();
-
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === 'RenderingCancelledException') {
-            return; // Normal behavior when zooming rapidly
+      } catch (err: any) {
+        if (err.name !== 'RenderingCancelledException') {
+          console.error('Error rendering page:', err);
         }
-        console.error('Error rendering page:', err);
-        setErrorMsg('Render Error: ' + (err instanceof Error ? err.message : String(err)));
       }
     };
 
     renderPage();
-    
     return () => {
         isMounted = false;
+        if (renderTaskRef.current) {
+            try { renderTaskRef.current.cancel(); } catch (e) {}
+        }
     };
-  }, [pdfDoc, pageNum, scale]);
+  }, [isVisible, pdfDoc, scale, pageNum]);
 
-  // Handle Trackpad Pinch Zoom
+  return (
+    <div ref={wrapperRef} data-page={pageNum} className={`pdf-page-wrapper ${isVertical ? 'vertical-page' : ''}`} style={{ minHeight: isVertical ? `${800 * scale}px` : 'auto', minWidth: isVertical ? `${600 * scale}px` : 'auto' }}>
+       {isVisible && (
+          <>
+            <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+            <div ref={textLayerRef} className="textLayer"></div>
+          </>
+       )}
+    </div>
+  );
+});
+
+const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [pageNum, setPageNum] = useState(initialPage || 1);
+  const [pageCount, setPageCount] = useState(0);
+  const [scale, setScale] = useState(1.2);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [scrollMode, setScrollMode] = useState<'horizontal' | 'vertical'>(
+    () => (localStorage.getItem('pdf_scroll_mode') as 'horizontal' | 'vertical') || 'horizontal'
+  );
+
+  const fileName = filePath.split('\\').pop()?.split('/').pop() || 'Document';
+
   useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      // Trackpad pinch-to-zoom triggers wheel events with ctrlKey = true
-      if (e.ctrlKey) {
-        e.preventDefault();
-        // deltaY is negative when pinching out (zoom in), positive when pinching in (zoom out)
-        const zoomFactor = e.deltaY * -0.01;
-        setScale((prev) => {
-          const newScale = prev + zoomFactor;
-          return Math.min(Math.max(0.5, newScale), 5.0); // Limit zoom between 50% and 500%
-        });
+    localStorage.setItem('pdf_scroll_mode', scrollMode);
+  }, [scrollMode]);
+
+  useEffect(() => {
+    const loadPDF = async () => {
+      setLoading(true);
+      setErrorMsg(null);
+      try {
+        const base64 = await window.ipcRenderer.invoke('file:read', filePath);
+        if (base64 && typeof base64 === 'string') {
+          const binaryString = atob(base64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const loadingTask = pdfjsLib.getDocument({ data: bytes });
+          const doc = await loadingTask.promise;
+          setPdfDoc(doc);
+          setPageCount(doc.numPages);
+          setPageNum(initialPage || 1);
+        } else {
+          setErrorMsg('Failed to load PDF buffer via IPC');
+        }
+      } catch (err: any) {
+        setErrorMsg('Load Error: ' + err.message);
+      } finally {
+        setLoading(false);
       }
     };
+    if (filePath) loadPDF();
+  }, [filePath]);
 
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const zoomFactor = e.deltaY * -0.01;
+        setScale((prev) => Math.min(Math.max(0.5, prev + zoomFactor), 5.0));
+      }
+    };
     const container = containerRef.current;
     if (container) {
       container.addEventListener('wheel', handleWheel, { passive: false });
@@ -166,7 +184,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
     }
   }, []);
 
-  // Sync page changes to DB
   useEffect(() => {
     if (!pdfDoc) return;
     const timer = setTimeout(() => {
@@ -180,27 +197,75 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
   const zoomIn = () => setScale((prev) => prev + 0.2);
   const zoomOut = () => setScale((prev) => Math.max(0.5, prev - 0.2));
 
+  const handleVisiblePage = useCallback((num: number) => {
+    setPageNum(num);
+  }, []);
+
+  const renderPages = useMemo(() => {
+    if (!pdfDoc || pageCount === 0) return null;
+    
+    if (scrollMode === 'horizontal') {
+      return <PDFPage key={`page-${pageNum}`} pdfDoc={pdfDoc} pageNum={pageNum} scale={scale} isVertical={false} />;
+    } else {
+      // Vertical mode: render all pages with IntersectionObserver
+      const pages = [];
+      for (let i = 1; i <= pageCount; i++) {
+        pages.push(
+          <PDFPage 
+            key={`page-${i}`} 
+            pdfDoc={pdfDoc} 
+            pageNum={i} 
+            scale={scale} 
+            isVertical={true} 
+            onVisible={handleVisiblePage} 
+          />
+        );
+      }
+      return <div className="vertical-pages-container">{pages}</div>;
+    }
+  }, [pdfDoc, pageCount, pageNum, scale, scrollMode, handleVisiblePage]);
+
+  // Jump to initial page when switching to vertical mode or on load
+  useEffect(() => {
+    if (scrollMode === 'vertical' && containerRef.current) {
+        setTimeout(() => {
+            const pageEl = containerRef.current?.querySelector(`[data-page="${pageNum}"]`);
+            if (pageEl) pageEl.scrollIntoView();
+        }, 100);
+    }
+  }, [scrollMode, pdfDoc]);
+
   return (
     <div className="pdf-viewer-container">
-      {/* Toolbar */}
       <div className="pdf-toolbar">
         <div className="toolbar-section">
           <span className="file-name" title={fileName}>{fileName}</span>
         </div>
         
         <div className="toolbar-section pagination-controls">
-          <button onClick={goToPrevPage} disabled={pageNum <= 1 || loading} className="icon-btn">
-            <ChevronLeft size={20} />
-          </button>
+          {scrollMode === 'horizontal' && (
+            <button onClick={goToPrevPage} disabled={pageNum <= 1 || loading} className="icon-btn">
+              <ChevronLeft size={20} />
+            </button>
+          )}
           <span className="page-indicator">
             {pageCount > 0 ? `Page ${pageNum} of ${pageCount}` : 'Loading...'}
           </span>
-          <button onClick={goToNextPage} disabled={pageNum >= pageCount || loading} className="icon-btn">
-            <ChevronRight size={20} />
-          </button>
+          {scrollMode === 'horizontal' && (
+            <button onClick={goToNextPage} disabled={pageNum >= pageCount || loading} className="icon-btn">
+              <ChevronRight size={20} />
+            </button>
+          )}
         </div>
         
-        <div className="toolbar-section zoom-controls">
+        <div className="toolbar-section mode-controls">
+          <button onClick={() => setScrollMode('horizontal')} className={`icon-btn mode-btn ${scrollMode === 'horizontal' ? 'active' : ''}`} title="Horizontal Mode">
+            <BookOpen size={18} />
+          </button>
+          <button onClick={() => setScrollMode('vertical')} className={`icon-btn mode-btn ${scrollMode === 'vertical' ? 'active' : ''}`} title="Vertical Mode">
+            <ScrollText size={18} />
+          </button>
+          <div className="toolbar-divider"></div>
           <button onClick={zoomOut} className="icon-btn">
             <ZoomOut size={20} />
           </button>
@@ -217,7 +282,6 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
         </div>
       </div>
 
-      {/* Canvas Area */}
       <div className="pdf-canvas-container" ref={containerRef}>
         {errorMsg ? (
           <div className="error-message" style={{ color: '#ff6b6b', padding: '2rem', textAlign: 'center', background: '#2a1e1e', borderRadius: '8px', margin: 'auto' }}>
@@ -227,10 +291,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
         ) : loading ? (
           <div className="loading-spinner">Loading Document...</div>
         ) : (
-          <div className="pdf-page-wrapper">
-            <canvas ref={canvasRef} className="pdf-canvas"></canvas>
-            <div ref={textLayerRef} className="textLayer"></div>
-          </div>
+          renderPages
         )}
       </div>
     </div>
