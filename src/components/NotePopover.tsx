@@ -15,6 +15,10 @@ export const NotePopover: React.FC<NotePopoverProps> = ({
 }) => {
   const [note, setNote] = useState(initialNote);
 
+  useEffect(() => {
+    setNote(initialNote);
+  }, [initialNote]);
+
   // Focus textarea on mount
   useEffect(() => {
     const el = document.getElementById('note-textarea');

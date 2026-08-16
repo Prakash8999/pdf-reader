@@ -254,8 +254,8 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
                           borderRadius: '1px',
                         }} />
                       )}
-                      {/* Note icon on first rect if annotation has a note */}
-                      {showNoteIcons && idx === 0 && anno.note_content !== null && (
+                      {/* Note icon on first rect if annotation has a non-empty note */}
+                      {showNoteIcons && idx === 0 && anno.note_content && anno.note_content.trim() !== '' && (
                         <div 
                           className="annotation-note-icon"
                           style={{ 
@@ -888,6 +888,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
 
       {notePopoverPos && (
         <NotePopover
+          key={notePopoverPos.annoId}
           x={notePopoverPos.x}
           y={notePopoverPos.y}
           initialNote={notePopoverPos.note}
