@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, BookOpen, ScrollText, FileText, StickyNote } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, BookOpen, ScrollText, FileText, StickyNote, Search, X, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import './PDFViewer.css';
 import { SelectionToolbar } from './SelectionToolbar';
 import { NotePopover } from './NotePopover';
@@ -15,12 +15,14 @@ interface PDFViewerProps {
   initialPage?: number;
 }
 
-const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, annotations = [], onNoteClick, showNoteIcons }: any) => {
+const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, annotations = [], onNoteClick, showNoteIcons, searchQuery, searchMatches = [], activeMatchIndexOnPage = -1 }: any) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(!isVertical);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
+  const [searchRects, setSearchRects] = useState<{rects: any[], isActive: boolean}[]>([]);
+  const [textLayerRendered, setTextLayerRendered] = useState(0);
 
   useEffect(() => {
     if (!isVertical) {
@@ -98,6 +100,7 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
             viewport: cssViewport 
         });
         await textLayerObj.render();
+        setTextLayerRendered(Date.now());
       } catch (err: any) {
         if (err.name !== 'RenderingCancelledException') {
           console.error('Error rendering page:', err);
@@ -114,12 +117,91 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
     };
   }, [isVisible, pdfDoc, scale, pageNum]);
 
+  // Separate effect for search highlights to prevent canvas re-renders
+  useEffect(() => {
+    if (!wrapperRef.current || !textLayerRef.current || textLayerRef.current.innerHTML === '') return;
+    
+    if (searchMatches.length > 0 && searchQuery) {
+      const textLayer = textLayerRef.current;
+      const wrapper = wrapperRef.current;
+      const spans = Array.from(textLayer.querySelectorAll('span'));
+      let fullText = '';
+      const spanOffsets: {span: Element, start: number, end: number}[] = [];
+      
+      spans.forEach((span) => {
+        const text = span.textContent || '';
+        spanOffsets.push({ span, start: fullText.length, end: fullText.length + text.length });
+        fullText += text;
+      });
+      
+      const query = searchQuery.toLowerCase();
+      const newSearchRects = [];
+      const wrapperRect = wrapper.getBoundingClientRect();
+      
+      let matchIdx = fullText.toLowerCase().indexOf(query);
+      let countOnPage = 0;
+      
+      while (matchIdx !== -1) {
+        const endMatchIdx = matchIdx + query.length;
+        
+        const startSpanData = spanOffsets.find(o => matchIdx >= o.start && matchIdx < o.end);
+        const endSpanData = spanOffsets.find(o => endMatchIdx > o.start && endMatchIdx <= o.end) || spanOffsets.find(o => endMatchIdx >= o.start && endMatchIdx <= o.end);
+        
+        if (startSpanData && endSpanData) {
+           try {
+             const range = document.createRange();
+             const startTextNode = startSpanData.span.firstChild;
+             const endTextNode = endSpanData.span.firstChild;
+             
+             if (startTextNode && endTextNode) {
+               range.setStart(startTextNode, matchIdx - startSpanData.start);
+               range.setEnd(endTextNode, endMatchIdx - endSpanData.start);
+               
+               const clientRects = Array.from(range.getClientRects());
+               const relRects = clientRects.filter(r => r.width > 0 && r.height > 0).map(r => ({
+                  top: (r.top - wrapperRect.top) / wrapperRect.height,
+                  left: (r.left - wrapperRect.left) / wrapperRect.width,
+                  width: r.width / wrapperRect.width,
+                  height: r.height / wrapperRect.height,
+               }));
+               
+               newSearchRects.push({
+                 rects: relRects,
+                 isActive: activeMatchIndexOnPage === countOnPage
+               });
+             }
+           } catch(e) {}
+        }
+        
+        countOnPage++;
+        matchIdx = fullText.toLowerCase().indexOf(query, matchIdx + 1);
+      }
+      setSearchRects(newSearchRects);
+    } else {
+      setSearchRects([]);
+    }
+  }, [searchMatches, searchQuery, activeMatchIndexOnPage, scale, textLayerRendered]);
+
   return (
     <div ref={wrapperRef} data-page={pageNum} className={`pdf-page-wrapper ${isVertical ? 'vertical-page' : ''}`} style={{ minHeight: isVertical ? `${800 * scale}px` : 'auto', minWidth: isVertical ? `${600 * scale}px` : 'auto', position: 'relative' }}>
        {isVisible && (
           <>
             <canvas ref={canvasRef} className="pdf-canvas"></canvas>
             <div ref={textLayerRef} className="textLayer"></div>
+            {/* Search overlay layer */}
+            <div className="search-overlay-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}>
+              {searchRects.map((match, i) => 
+                 match.rects.map((r, j) => (
+                   <div key={`search-${i}-${j}`} className={`search-highlight-rect ${match.isActive ? 'active' : ''}`} style={{
+                     position: 'absolute',
+                     left: `${r.left * 100}%`,
+                     top: `${r.top * 100}%`,
+                     width: `${r.width * 100}%`,
+                     height: `${r.height * 100}%`
+                   }} />
+                 ))
+              )}
+            </div>
             {/* Annotation overlay layer */}
             <div className="annotation-overlay-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
               {annotations.map((anno: any) => {
@@ -223,11 +305,18 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
   const [selectionPos, setSelectionPos] = useState<{x: number, y: number} | null>(null);
   const [currentSelection, setCurrentSelection] = useState<any>(null);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [showNoteIcons, setShowNoteIcons] = useState(true);
+  const [showNoteIcons, setShowNoteIcons] = useState(false);
   
   const [notePopoverPos, setNotePopoverPos] = useState<{x: number, y: number, note: string, annoId: number} | null>(null);
   const [hoveredNoteInfo, setHoveredNoteInfo] = useState<{text: string, x: number, y: number, id: number} | null>(null);
   const [editingAnnoId, setEditingAnnoId] = useState<number | null>(null);
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<{pageNum: number, matchIndexOnPage: number}[]>([]);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
+  const [showSearchBar, setShowSearchBar] = useState(false);
 
   const [scrollMode, setScrollMode] = useState<'horizontal' | 'vertical'>(
     () => (localStorage.getItem('pdf_scroll_mode') as 'horizontal' | 'vertical') || 'horizontal'
@@ -348,6 +437,65 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
     window.getSelection()?.removeAllRanges();
   };
 
+  const scrollToMatch = useCallback((match: {pageNum: number}) => {
+    if (scrollMode === 'horizontal') {
+      setPageNum(match.pageNum);
+    } else {
+      const pageEl = containerRef.current?.querySelector(`[data-page="${match.pageNum}"]`);
+      if (pageEl) pageEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [scrollMode]);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !pdfDoc) return;
+    setIsSearching(true);
+    setSearchResults([]);
+    setActiveSearchIndex(-1);
+    
+    const matches: {pageNum: number, matchIndexOnPage: number}[] = [];
+    const query = searchQuery.toLowerCase();
+    
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      try {
+        const page = await pdfDoc.getPage(i);
+        const tc = await page.getTextContent();
+        let fullText = '';
+        tc.items.forEach((item: any) => {
+          if (item.str) fullText += item.str;
+        });
+        
+        let matchIdx = fullText.toLowerCase().indexOf(query);
+        let countOnPage = 0;
+        while (matchIdx !== -1) {
+          matches.push({ pageNum: i, matchIndexOnPage: countOnPage });
+          countOnPage++;
+          matchIdx = fullText.toLowerCase().indexOf(query, matchIdx + 1);
+        }
+      } catch (e) {}
+    }
+    
+    setSearchResults(matches);
+    if (matches.length > 0) {
+      setActiveSearchIndex(0);
+      scrollToMatch(matches[0]);
+    }
+    setIsSearching(false);
+  };
+
+  const handleNextSearch = () => {
+    if (searchResults.length === 0) return;
+    const nextIdx = (activeSearchIndex + 1) % searchResults.length;
+    setActiveSearchIndex(nextIdx);
+    scrollToMatch(searchResults[nextIdx]);
+  };
+
+  const handlePrevSearch = () => {
+    if (searchResults.length === 0) return;
+    const prevIdx = (activeSearchIndex - 1 + searchResults.length) % searchResults.length;
+    setActiveSearchIndex(prevIdx);
+    scrollToMatch(searchResults[prevIdx]);
+  };
+
   const goToPrevPage = () => setPageNum((prev) => Math.max(1, prev - 1));
   const goToNextPage = () => setPageNum((prev) => Math.min(pageCount, prev + 1));
   const zoomIn = () => setScale((prev) => prev + 0.2);
@@ -370,7 +518,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
     
     if (scrollMode === 'horizontal') {
       const pageAnnos = annotations.filter(a => a.locator && JSON.parse(a.locator).pageNum === pageNum);
-      return <PDFPage key={`page-${pageNum}`} pdfDoc={pdfDoc} pageNum={pageNum} scale={scale} isVertical={false} annotations={pageAnnos} onNoteClick={handleNoteClick} showNoteIcons={showNoteIcons} />;
+      return <PDFPage key={`page-${pageNum}`} pdfDoc={pdfDoc} pageNum={pageNum} scale={scale} isVertical={false} annotations={pageAnnos} onNoteClick={handleNoteClick} showNoteIcons={showNoteIcons} searchQuery={searchQuery} searchMatches={searchResults.filter(m => m.pageNum === pageNum)} activeMatchIndexOnPage={searchResults[activeSearchIndex]?.pageNum === pageNum ? searchResults[activeSearchIndex].matchIndexOnPage : -1} />;
     } else {
       // Vertical mode: render all pages with IntersectionObserver
       const pages = [];
@@ -387,12 +535,15 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
             annotations={pageAnnos}
             onNoteClick={handleNoteClick}
             showNoteIcons={showNoteIcons}
+            searchQuery={searchQuery}
+            searchMatches={searchResults.filter(m => m.pageNum === i)}
+            activeMatchIndexOnPage={searchResults[activeSearchIndex]?.pageNum === i ? searchResults[activeSearchIndex].matchIndexOnPage : -1}
           />
         );
       }
       return <div className="vertical-pages-container">{pages}</div>;
     }
-  }, [pdfDoc, pageCount, pageNum, scale, scrollMode, handleVisiblePage, annotations, handleNoteClick, showNoteIcons]);
+  }, [pdfDoc, pageCount, pageNum, scale, scrollMode, handleVisiblePage, annotations, handleNoteClick, showNoteIcons, searchQuery, searchResults, activeSearchIndex]);
 
   // Jump to initial page when switching to vertical mode or on load
   useEffect(() => {
@@ -434,6 +585,30 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           <button onClick={() => setScrollMode('vertical')} className={`icon-btn mode-btn ${scrollMode === 'vertical' ? 'active' : ''}`} title="Vertical Mode">
             <ScrollText size={18} />
           </button>
+          <div className="toolbar-divider"></div>
+          {showSearchBar ? (
+            <div className="search-bar" style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', padding: '2px 6px', gap: '4px' }}>
+              <input 
+                type="text" 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                placeholder="Search document..."
+                autoFocus
+                style={{ background: 'transparent', border: 'none', color: '#e0e0e0', outline: 'none', width: '120px', fontSize: '13px' }}
+              />
+              <span className="search-count" style={{ fontSize: '12px', color: '#a0a0a0', minWidth: '35px', textAlign: 'center' }}>
+                {isSearching ? <Loader2 size={12} className="spin" /> : searchResults.length > 0 ? `${activeSearchIndex + 1}/${searchResults.length}` : '0/0'}
+              </span>
+              <button onClick={handlePrevSearch} disabled={searchResults.length === 0} className="icon-btn" style={{ padding: '2px' }}><ArrowUp size={14} /></button>
+              <button onClick={handleNextSearch} disabled={searchResults.length === 0} className="icon-btn" style={{ padding: '2px' }}><ArrowDown size={14} /></button>
+              <button onClick={() => { setShowSearchBar(false); setSearchResults([]); }} className="icon-btn" style={{ padding: '2px' }}><X size={14} /></button>
+            </div>
+          ) : (
+            <button onClick={() => setShowSearchBar(true)} className="icon-btn mode-btn" title="Search">
+              <Search size={18} />
+            </button>
+          )}
           <div className="toolbar-divider"></div>
           <button onClick={() => setShowNoteIcons(!showNoteIcons)} className={`icon-btn mode-btn ${showNoteIcons ? 'active' : ''}`} title="Toggle Note Icons">
             <StickyNote size={18} />
