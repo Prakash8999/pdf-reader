@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, BookOpen, ScrollText, FileText, StickyNote, Search, X, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, BookOpen, ScrollText, StickyNote, Search, X, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import './PDFViewer.css';
 import { SelectionToolbar } from './SelectionToolbar';
 import { NotePopover } from './NotePopover';
@@ -21,7 +21,7 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(!isVertical);
   const renderTaskRef = useRef<pdfjsLib.RenderTask | null>(null);
-  const [searchRects, setSearchRects] = useState<{rects: any[], isActive: boolean}[]>([]);
+  const [searchRects, setSearchRects] = useState<{ rects: any[], isActive: boolean }[]>([]);
   const [textLayerRendered, setTextLayerRendered] = useState(0);
 
   useEffect(() => {
@@ -51,9 +51,9 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
     let isMounted = true;
     const renderPage = async () => {
       if (!isVisible || !pdfDoc || !canvasRef.current || !textLayerRef.current) return;
-      
+
       if (renderTaskRef.current) {
-        try { renderTaskRef.current.cancel(); } catch (e) {}
+        try { renderTaskRef.current.cancel(); } catch (e) { }
       }
 
       try {
@@ -63,13 +63,13 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
         const cssViewport = page.getViewport({ scale });
         const pixelRatio = Math.max(2, window.devicePixelRatio || 1);
         const renderViewport = page.getViewport({ scale: scale * pixelRatio });
-        
+
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
         const textLayer = textLayerRef.current;
-        
+
         if (!context) return;
-        
+
         canvas.width = Math.floor(renderViewport.width);
         canvas.height = Math.floor(renderViewport.height);
         canvas.style.width = Math.floor(cssViewport.width) + 'px';
@@ -77,27 +77,27 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
 
         const wrapper = canvas.parentElement;
         if (wrapper) {
-            wrapper.style.width = Math.floor(cssViewport.width) + 'px';
-            wrapper.style.height = Math.floor(cssViewport.height) + 'px';
+          wrapper.style.width = Math.floor(cssViewport.width) + 'px';
+          wrapper.style.height = Math.floor(cssViewport.height) + 'px';
         }
 
         const renderContext = { canvasContext: context, viewport: renderViewport, canvas: canvas };
-        
+
         const renderTask = page.render(renderContext);
         renderTaskRef.current = renderTask;
         await renderTask.promise;
         renderTaskRef.current = null;
-        
+
         if (!isMounted) return;
 
         textLayer.innerHTML = '';
         textLayer.style.setProperty('--scale-factor', cssViewport.scale.toString());
         textLayer.style.setProperty('--total-scale-factor', cssViewport.scale.toString());
-        
+
         const textLayerObj = new pdfjsLib.TextLayer({
-            textContentSource: page.streamTextContent(),
-            container: textLayer,
-            viewport: cssViewport 
+          textContentSource: page.streamTextContent(),
+          container: textLayer,
+          viewport: cssViewport
         });
         await textLayerObj.render();
         setTextLayerRendered(Date.now());
@@ -110,184 +110,192 @@ const PDFPage = React.memo(({ pdfDoc, pageNum, scale, isVertical, onVisible, ann
 
     renderPage();
     return () => {
-        isMounted = false;
-        if (renderTaskRef.current) {
-            try { renderTaskRef.current.cancel(); } catch (e) {}
-        }
+      isMounted = false;
+      if (renderTaskRef.current) {
+        try { renderTaskRef.current.cancel(); } catch (e) { }
+      }
     };
   }, [isVisible, pdfDoc, scale, pageNum]);
 
   // Separate effect for search highlights to prevent canvas re-renders
   useEffect(() => {
     if (!wrapperRef.current || !textLayerRef.current || textLayerRef.current.innerHTML === '') return;
-    
+
+    const searchRanges: Range[] = [];
+    const activeSearchRanges: Range[] = [];
+    const newSearchRects: { rects: any[], isActive: boolean }[] = [];
+
     if (searchMatches.length > 0 && searchQuery) {
       const textLayer = textLayerRef.current;
       const wrapper = wrapperRef.current;
       const spans = Array.from(textLayer.querySelectorAll('span'));
       let fullText = '';
-      const spanOffsets: {span: Element, start: number, end: number}[] = [];
-      
+      const spanOffsets: { span: Element, start: number, end: number }[] = [];
+
       spans.forEach((span) => {
         const text = span.textContent || '';
         spanOffsets.push({ span, start: fullText.length, end: fullText.length + text.length });
         fullText += text;
       });
-      
+
       const query = searchQuery.toLowerCase();
-      const newSearchRects = [];
       const wrapperRect = wrapper.getBoundingClientRect();
-      
+
       let matchIdx = fullText.toLowerCase().indexOf(query);
       let countOnPage = 0;
-      
+
       while (matchIdx !== -1) {
         const endMatchIdx = matchIdx + query.length;
-        
+
         const startSpanData = spanOffsets.find(o => matchIdx >= o.start && matchIdx < o.end);
         const endSpanData = spanOffsets.find(o => endMatchIdx > o.start && endMatchIdx <= o.end) || spanOffsets.find(o => endMatchIdx >= o.start && endMatchIdx <= o.end);
-        
+
         if (startSpanData && endSpanData) {
-           try {
-             const range = document.createRange();
-             const startTextNode = startSpanData.span.firstChild;
-             const endTextNode = endSpanData.span.firstChild;
-             
-             if (startTextNode && endTextNode) {
-               range.setStart(startTextNode, matchIdx - startSpanData.start);
-               range.setEnd(endTextNode, endMatchIdx - endSpanData.start);
-               
-               const clientRects = Array.from(range.getClientRects());
-               const relRects = clientRects.filter(r => r.width > 0 && r.height > 0).map(r => ({
-                  top: (r.top - wrapperRect.top) / wrapperRect.height,
-                  left: (r.left - wrapperRect.left) / wrapperRect.width,
-                  width: r.width / wrapperRect.width,
-                  height: r.height / wrapperRect.height,
-               }));
-               
-               newSearchRects.push({
-                 rects: relRects,
-                 isActive: activeMatchIndexOnPage === countOnPage
-               });
-             }
-           } catch(e) {}
+          try {
+            const range = document.createRange();
+            const startTextNode = startSpanData.span.firstChild;
+            const endTextNode = endSpanData.span.firstChild;
+
+            if (startTextNode && endTextNode) {
+              range.setStart(startTextNode, matchIdx - startSpanData.start);
+              range.setEnd(endTextNode, endMatchIdx - endSpanData.start);
+
+              if (activeMatchIndexOnPage === countOnPage) {
+                activeSearchRanges.push(range);
+              } else {
+                searchRanges.push(range);
+              }
+
+              const clientRects = Array.from(range.getClientRects());
+              const relRects = clientRects.filter(r => r.width > 0 && r.height > 0).map(r => ({
+                top: (r.top - wrapperRect.top) / wrapperRect.height,
+                left: (r.left - wrapperRect.left) / wrapperRect.width,
+                width: r.width / wrapperRect.width,
+                height: r.height / wrapperRect.height,
+              }));
+
+              newSearchRects.push({
+                rects: relRects,
+                isActive: activeMatchIndexOnPage === countOnPage
+              });
+            }
+          } catch (e) { }
         }
-        
+
         countOnPage++;
         matchIdx = fullText.toLowerCase().indexOf(query, matchIdx + 1);
       }
-      setSearchRects(newSearchRects);
-    } else {
-      setSearchRects([]);
     }
+
+    setSearchRects(newSearchRects);
   }, [searchMatches, searchQuery, activeMatchIndexOnPage, scale, textLayerRendered]);
 
   return (
     <div ref={wrapperRef} data-page={pageNum} className={`pdf-page-wrapper ${isVertical ? 'vertical-page' : ''}`} style={{ minHeight: isVertical ? `${800 * scale}px` : 'auto', minWidth: isVertical ? `${600 * scale}px` : 'auto', position: 'relative' }}>
-       {isVisible && (
-          <>
-            <canvas ref={canvasRef} className="pdf-canvas"></canvas>
-            <div ref={textLayerRef} className="textLayer"></div>
-            {/* Search overlay layer */}
-            <div className="search-overlay-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}>
-              {searchRects.map((match, i) => 
-                 match.rects.map((r, j) => (
-                   <div key={`search-${i}-${j}`} className={`search-highlight-rect ${match.isActive ? 'active' : ''}`} style={{
-                     position: 'absolute',
-                     left: `${r.left * 100}%`,
-                     top: `${r.top * 100}%`,
-                     width: `${r.width * 100}%`,
-                     height: `${r.height * 100}%`
-                   }} />
-                 ))
-              )}
-            </div>
-            {/* Annotation overlay layer */}
-            <div className="annotation-overlay-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
-              {annotations.map((anno: any) => {
-                try {
-                  const locData = JSON.parse(anno.locator);
-                  const rects = locData.rects;
-                  if (!rects || rects.length === 0) return null;
+      {isVisible && (
+        <>
+          <canvas ref={canvasRef} className="pdf-canvas"></canvas>
+          <div ref={textLayerRef} className="textLayer"></div>
+          {/* Search overlay layer */}
+          <div className="search-overlay-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2 }}>
+            {searchRects.map((match, i) =>
+              match.rects.map((r, j) => (
+                <div key={`search-${i}-${j}`} className={`search-highlight-rect ${match.isActive ? 'active' : ''}`} style={{
+                  position: 'absolute',
+                  left: `${r.left * 100}%`,
+                  top: `${r.top * 100}%`,
+                  width: `${r.width * 100}%`,
+                  height: `${r.height * 100}%`
+                }} />
+              ))
+            )}
+          </div>
+          {/* Annotation overlay layer */}
+          <div className="annotation-overlay-layer" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3 }}>
+            {annotations.map((anno: any) => {
+              try {
+                const locData = JSON.parse(anno.locator);
+                const rects = locData.rects;
+                if (!rects || rects.length === 0) return null;
 
-                  const isUnderline = anno.type === 'underline';
-                  const isStrikethrough = anno.type === 'strikethrough';
-                  const isHighlight = anno.type === 'highlight';
+                const isUnderline = anno.type === 'underline';
+                const isStrikethrough = anno.type === 'strikethrough';
+                const isHighlight = anno.type === 'highlight';
 
-                  return rects.map((r: any, idx: number) => (
-                    <React.Fragment key={`${anno.id}-${idx}`}>
-                      {/* Highlight fill */}
-                      {isHighlight && (
-                        <div style={{
+                return rects.map((r: any, idx: number) => (
+                  <React.Fragment key={`${anno.id}-${idx}`}>
+                    {/* Highlight fill */}
+                    {isHighlight && (
+                      <div style={{
+                        position: 'absolute',
+                        top: `${r.top * 100}%`,
+                        left: `${r.left * 100}%`,
+                        width: `${r.width * 100}%`,
+                        height: `${r.height * 100}%`,
+                        backgroundColor: anno.color,
+                        mixBlendMode: 'multiply',
+                        opacity: 0.45,
+                        borderRadius: '2px',
+                      }} />
+                    )}
+                    {/* Underline: a 2px line at the bottom of the rect */}
+                    {isUnderline && (
+                      <div style={{
+                        position: 'absolute',
+                        top: `calc(${r.top * 100}% + ${r.height * 100}% - 2px)`,
+                        left: `${r.left * 100}%`,
+                        width: `${r.width * 100}%`,
+                        height: '2px',
+                        backgroundColor: anno.color,
+                        borderRadius: '1px',
+                      }} />
+                    )}
+                    {/* Strikethrough: a 2px line through the middle */}
+                    {isStrikethrough && (
+                      <div style={{
+                        position: 'absolute',
+                        top: `calc(${r.top * 100}% + ${r.height * 100}% * 0.5 - 1px)`,
+                        left: `${r.left * 100}%`,
+                        width: `${r.width * 100}%`,
+                        height: '2px',
+                        backgroundColor: anno.color,
+                        borderRadius: '1px',
+                      }} />
+                    )}
+                    {/* Note icon on first rect if annotation has a non-empty note */}
+                    {showNoteIcons && idx === 0 && anno.note_content && anno.note_content.trim() !== '' && (
+                      <div
+                        className="annotation-note-icon"
+                        style={{
                           position: 'absolute',
-                          top: `${r.top * 100}%`,
                           left: `${r.left * 100}%`,
-                          width: `${r.width * 100}%`,
-                          height: `${r.height * 100}%`,
-                          backgroundColor: anno.color,
-                          mixBlendMode: 'multiply',
-                          opacity: 0.45,
-                          borderRadius: '2px',
-                        }} />
-                      )}
-                      {/* Underline: a 2px line at the bottom of the rect */}
-                      {isUnderline && (
-                        <div style={{
-                          position: 'absolute',
-                          top: `calc(${r.top * 100}% + ${r.height * 100}% - 2px)`,
-                          left: `${r.left * 100}%`,
-                          width: `${r.width * 100}%`,
-                          height: '2px',
-                          backgroundColor: anno.color,
-                          borderRadius: '1px',
-                        }} />
-                      )}
-                      {/* Strikethrough: a 2px line through the middle */}
-                      {isStrikethrough && (
-                        <div style={{
-                          position: 'absolute',
-                          top: `calc(${r.top * 100}% + ${r.height * 100}% * 0.5 - 1px)`,
-                          left: `${r.left * 100}%`,
-                          width: `${r.width * 100}%`,
-                          height: '2px',
-                          backgroundColor: anno.color,
-                          borderRadius: '1px',
-                        }} />
-                      )}
-                      {/* Note icon on first rect if annotation has a non-empty note */}
-                      {showNoteIcons && idx === 0 && anno.note_content && anno.note_content.trim() !== '' && (
-                        <div 
-                          className="annotation-note-icon"
-                          style={{ 
-                            position: 'absolute', 
-                            left: `${r.left * 100}%`, 
-                            top: `calc(${r.top * 100}% - 18px)`,
-                            cursor: 'pointer', 
-                            pointerEvents: 'auto', 
-                            color: '#e0e0e0',
-                            background: 'rgba(30,30,30,0.8)', 
-                            borderRadius: '4px', 
-                            padding: '2px 4px', 
-                            boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                            lineHeight: '1',
-                            zIndex: 5,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                          }}
-                          onClick={(e) => { e.stopPropagation(); onNoteClick(anno.id, e.clientX, e.clientY); }}
-                          title={anno.note_content || 'Click to edit note'}
-                        >
-                          <StickyNote size={14} />
-                        </div>
-                      )}
-                    </React.Fragment>
-                  ));
-                } catch(e) { return null; }
-              })}
-            </div>
-          </>
-       )}
+                          top: `calc(${r.top * 100}% - 18px)`,
+                          cursor: 'pointer',
+                          pointerEvents: 'auto',
+                          color: '#e0e0e0',
+                          background: 'rgba(30,30,30,0.8)',
+                          borderRadius: '4px',
+                          padding: '2px 4px',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                          lineHeight: '1',
+                          zIndex: 5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        onClick={(e) => { e.stopPropagation(); onNoteClick(anno.id, e.clientX, e.clientY); }}
+                        title={anno.note_content || 'Click to edit note'}
+                      >
+                        <StickyNote size={14} />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ));
+              } catch (e) { return null; }
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 });
@@ -302,19 +310,20 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [annotations, setAnnotations] = useState<any[]>([]);
-  const [selectionPos, setSelectionPos] = useState<{x: number, y: number} | null>(null);
+  const [selectionPos, setSelectionPos] = useState<{ x: number, y: number } | null>(null);
   const [currentSelection, setCurrentSelection] = useState<any>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [showNoteIcons, setShowNoteIcons] = useState(false);
-  
-  const [notePopoverPos, setNotePopoverPos] = useState<{x: number, y: number, note: string, annoId: number} | null>(null);
-  const [hoveredNoteInfo, setHoveredNoteInfo] = useState<{text: string, x: number, y: number, id: number} | null>(null);
+
+  const [notePopoverPos, setNotePopoverPos] = useState<{ x: number, y: number, note: string, annoId: number } | null>(null);
+  const [hoveredNoteInfo, setHoveredNoteInfo] = useState<{ text: string, x: number, y: number, id: number } | null>(null);
   const [editingAnnoId, setEditingAnnoId] = useState<number | null>(null);
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
+  const [lastSearchedQuery, setLastSearchedQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<{pageNum: number, matchIndexOnPage: number}[]>([]);
+  const [searchResults, setSearchResults] = useState<{ pageNum: number, matchIndexOnPage: number }[]>([]);
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const [showSearchBar, setShowSearchBar] = useState(false);
 
@@ -345,7 +354,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           setPdfDoc(doc);
           setPageCount(doc.numPages);
           setPageNum(initialPage || 1);
-          
+
           const loadedAnnos = await window.dbApi.getAnnotations(filePath);
           setAnnotations(loadedAnnos || []);
         } else {
@@ -385,59 +394,59 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
 
   const handleToggleAnnotation = async (type: 'highlight' | 'underline' | 'strikethrough', color: string) => {
     if (!currentSelection) return;
-    
+
     const selRects = currentSelection.rects;
     const pageAnnos = annotations.filter(a => {
-       try { return JSON.parse(a.locator).pageNum === currentSelection.pageNum; } catch { return false; }
+      try { return JSON.parse(a.locator).pageNum === currentSelection.pageNum; } catch { return false; }
     });
-    
+
     const overlappingAnnos: any[] = [];
     for (const anno of pageAnnos) {
-       if (anno.type !== type) continue; // Only toggle same type
-       try {
-          const loc = JSON.parse(anno.locator);
-          let overlaps = false;
-          for (const r1 of loc.rects) {
-             for (const r2 of selRects) {
-                if (!(r1.left > r2.left + r2.width || r1.left + r1.width < r2.left || r1.top > r2.top + r2.height || r1.top + r1.height < r2.top)) {
-                   overlaps = true; break;
-                }
-             }
-             if (overlaps) break;
+      if (anno.type !== type) continue; // Only toggle same type
+      try {
+        const loc = JSON.parse(anno.locator);
+        let overlaps = false;
+        for (const r1 of loc.rects) {
+          for (const r2 of selRects) {
+            if (!(r1.left > r2.left + r2.width || r1.left + r1.width < r2.left || r1.top > r2.top + r2.height || r1.top + r1.height < r2.top)) {
+              overlaps = true; break;
+            }
           }
-          if (overlaps) overlappingAnnos.push(anno);
-       } catch {}
+          if (overlaps) break;
+        }
+        if (overlaps) overlappingAnnos.push(anno);
+      } catch { }
     }
-    
+
     if (overlappingAnnos.length > 0) {
-       let allSameColor = overlappingAnnos.every(a => a.color === color);
-       if (type === 'highlight' && !allSameColor) {
-           for (const anno of overlappingAnnos) {
-               await window.dbApi.updateAnnotationColor(anno.id, color);
-           }
-           setAnnotations(prev => prev.map(a => overlappingAnnos.some(o => o.id === a.id) ? { ...a, color } : a));
-       } else {
-           for (const anno of overlappingAnnos) await window.dbApi.deleteAnnotation(anno.id);
-           setAnnotations(prev => prev.filter(a => !overlappingAnnos.some(o => o.id === a.id)));
-       }
+      let allSameColor = overlappingAnnos.every(a => a.color === color);
+      if (type === 'highlight' && !allSameColor) {
+        for (const anno of overlappingAnnos) {
+          await window.dbApi.updateAnnotationColor(anno.id, color);
+        }
+        setAnnotations(prev => prev.map(a => overlappingAnnos.some(o => o.id === a.id) ? { ...a, color } : a));
+      } else {
+        for (const anno of overlappingAnnos) await window.dbApi.deleteAnnotation(anno.id);
+        setAnnotations(prev => prev.filter(a => !overlappingAnnos.some(o => o.id === a.id)));
+      }
     } else {
-       const newAnno = {
-         file_path: filePath,
-         type: type,
-         color: color,
-         locator: JSON.stringify({ pageNum: currentSelection.pageNum, rects: currentSelection.rects }),
-         text_content: currentSelection.text,
-         note_content: null
-       };
-       const savedAnno = await window.dbApi.addAnnotation(newAnno);
-       if (savedAnno) setAnnotations(prev => [...prev, savedAnno]);
+      const newAnno = {
+        file_path: filePath,
+        type: type,
+        color: color,
+        locator: JSON.stringify({ pageNum: currentSelection.pageNum, rects: currentSelection.rects }),
+        text_content: currentSelection.text,
+        note_content: null
+      };
+      const savedAnno = await window.dbApi.addAnnotation(newAnno);
+      if (savedAnno) setAnnotations(prev => [...prev, savedAnno]);
     }
-    
+
     setSelectionPos(null);
     window.getSelection()?.removeAllRanges();
   };
 
-  const scrollToMatch = useCallback((match: {pageNum: number}) => {
+  const scrollToMatch = useCallback((match: { pageNum: number }) => {
     if (scrollMode === 'horizontal') {
       setPageNum(match.pageNum);
     } else {
@@ -451,10 +460,11 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
     setIsSearching(true);
     setSearchResults([]);
     setActiveSearchIndex(-1);
-    
-    const matches: {pageNum: number, matchIndexOnPage: number}[] = [];
+    setLastSearchedQuery(searchQuery);
+
+    const matches: { pageNum: number, matchIndexOnPage: number }[] = [];
     const query = searchQuery.toLowerCase();
-    
+
     for (let i = 1; i <= pdfDoc.numPages; i++) {
       try {
         const page = await pdfDoc.getPage(i);
@@ -463,7 +473,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
         tc.items.forEach((item: any) => {
           if (item.str) fullText += item.str;
         });
-        
+
         let matchIdx = fullText.toLowerCase().indexOf(query);
         let countOnPage = 0;
         while (matchIdx !== -1) {
@@ -471,9 +481,9 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           countOnPage++;
           matchIdx = fullText.toLowerCase().indexOf(query, matchIdx + 1);
         }
-      } catch (e) {}
+      } catch (e) { }
     }
-    
+
     setSearchResults(matches);
     if (matches.length > 0) {
       setActiveSearchIndex(0);
@@ -515,7 +525,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
 
   const renderPages = useMemo(() => {
     if (!pdfDoc || pageCount === 0) return null;
-    
+
     if (scrollMode === 'horizontal') {
       const pageAnnos = annotations.filter(a => a.locator && JSON.parse(a.locator).pageNum === pageNum);
       return <PDFPage key={`page-${pageNum}`} pdfDoc={pdfDoc} pageNum={pageNum} scale={scale} isVertical={false} annotations={pageAnnos} onNoteClick={handleNoteClick} showNoteIcons={showNoteIcons} searchQuery={searchQuery} searchMatches={searchResults.filter(m => m.pageNum === pageNum)} activeMatchIndexOnPage={searchResults[activeSearchIndex]?.pageNum === pageNum ? searchResults[activeSearchIndex].matchIndexOnPage : -1} />;
@@ -525,13 +535,13 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
       for (let i = 1; i <= pageCount; i++) {
         const pageAnnos = annotations.filter(a => a.locator && JSON.parse(a.locator).pageNum === i);
         pages.push(
-          <PDFPage 
-            key={`page-${i}`} 
-            pdfDoc={pdfDoc} 
-            pageNum={i} 
-            scale={scale} 
-            isVertical={true} 
-            onVisible={handleVisiblePage} 
+          <PDFPage
+            key={`page-${i}`}
+            pdfDoc={pdfDoc}
+            pageNum={i}
+            scale={scale}
+            isVertical={true}
+            onVisible={handleVisiblePage}
             annotations={pageAnnos}
             onNoteClick={handleNoteClick}
             showNoteIcons={showNoteIcons}
@@ -548,10 +558,10 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
   // Jump to initial page when switching to vertical mode or on load
   useEffect(() => {
     if (scrollMode === 'vertical' && containerRef.current) {
-        setTimeout(() => {
-            const pageEl = containerRef.current?.querySelector(`[data-page="${pageNum}"]`);
-            if (pageEl) pageEl.scrollIntoView();
-        }, 100);
+      setTimeout(() => {
+        const pageEl = containerRef.current?.querySelector(`[data-page="${pageNum}"]`);
+        if (pageEl) pageEl.scrollIntoView();
+      }, 100);
     }
   }, [scrollMode, pdfDoc]);
 
@@ -561,7 +571,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
         <div className="toolbar-section">
           <span className="file-name" title={fileName}>{fileName}</span>
         </div>
-        
+
         <div className="toolbar-section pagination-controls">
           {scrollMode === 'horizontal' && (
             <button onClick={goToPrevPage} disabled={pageNum <= 1 || loading} className="icon-btn">
@@ -577,7 +587,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
             </button>
           )}
         </div>
-        
+
         <div className="toolbar-section mode-controls">
           <button onClick={() => setScrollMode('horizontal')} className={`icon-btn mode-btn ${scrollMode === 'horizontal' ? 'active' : ''}`} title="Horizontal Mode">
             <BookOpen size={18} />
@@ -588,11 +598,19 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           <div className="toolbar-divider"></div>
           {showSearchBar ? (
             <div className="search-bar" style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', padding: '2px 6px', gap: '4px' }}>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    if (searchResults.length > 0 && searchQuery === lastSearchedQuery) {
+                      handleNextSearch();
+                    } else {
+                      handleSearch();
+                    }
+                  }
+                }}
                 placeholder="Search document..."
                 autoFocus
                 style={{ background: 'transparent', border: 'none', color: '#e0e0e0', outline: 'none', width: '120px', fontSize: '13px' }}
@@ -621,10 +639,10 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           <button onClick={zoomIn} className="icon-btn">
             <ZoomIn size={20} />
           </button>
-          <div className="toolbar-divider"></div>
+          {/* <div className="toolbar-divider"></div>
           <button onClick={() => setShowSidebar(!showSidebar)} className={`icon-btn mode-btn ${showSidebar ? 'active' : ''}`} title="Annotations">
             <FileText size={18} />
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -634,8 +652,8 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
         </div>
       </div>
 
-      <div 
-        className="pdf-canvas-container" 
+      <div
+        className="pdf-canvas-container"
         ref={containerRef}
         onMouseMove={(e) => {
           let foundHover: any = null;
@@ -646,14 +664,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
             if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
               const pNum = parseInt(wrapper.getAttribute('data-page') || '0');
               if (!pNum) continue;
-              
+
               const relX = (e.clientX - rect.left) / rect.width;
               const relY = (e.clientY - rect.top) / rect.height;
-              
+
               const pageAnnos = annotations.filter(a => {
                 try { return JSON.parse(a.locator).pageNum === pNum; } catch { return false; }
               });
-              
+
               for (const anno of pageAnnos) {
                 try {
                   const loc = JSON.parse(anno.locator);
@@ -663,7 +681,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
                       break;
                     }
                   }
-                } catch {}
+                } catch { }
                 if (foundHover) break;
               }
               break;
@@ -688,12 +706,12 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
             const selection = window.getSelection();
             if (selection && selection.toString().trim().length > 0) {
               const range = selection.getRangeAt(0);
-              
+
               // Walk up from the selection to find the page wrapper
               let node: HTMLElement | null = selection.anchorNode?.parentElement || null;
               let pageNumForSelection = pageNum;
               let wrapperRect: DOMRect | null = null;
-              
+
               while (node && !node.classList.contains('pdf-page-wrapper')) {
                 node = node.parentElement;
               }
@@ -701,7 +719,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
               if (node) {
                 wrapperRect = node.getBoundingClientRect();
                 pageNumForSelection = parseInt(node.getAttribute('data-page') || `${pageNum}`);
-                
+
                 // Normalize selection rects relative to the page wrapper
                 const clientRects = Array.from(range.getClientRects());
                 // Deduplicate and filter out zero-size rects
@@ -718,7 +736,7 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
                   const selRect = range.getBoundingClientRect();
                   const toolbarX = selRect.left + selRect.width / 2;
                   const toolbarY = selRect.top;
-                  
+
                   setCurrentSelection({
                     pageNum: pageNumForSelection,
                     rects,
@@ -733,10 +751,10 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           }, 10);
         }}
         onMouseDown={(e) => {
-           // Don't dismiss if clicking inside the toolbar
-           if ((e.target as HTMLElement).closest('.selection-toolbar')) return;
-           setSelectionPos(null);
-           setEditingAnnoId(null);
+          // Don't dismiss if clicking inside the toolbar
+          if ((e.target as HTMLElement).closest('.selection-toolbar')) return;
+          setSelectionPos(null);
+          setEditingAnnoId(null);
         }}
       >
         {errorMsg ? (
@@ -813,76 +831,76 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           window.getSelection()?.removeAllRanges();
         }}
         onDefine={() => {
-           if (editingAnnoId) return; // Hide for editing existing
-           const word = window.getSelection()?.toString().trim();
-           if (word) window.ipcRenderer.invoke('dictionary:define', word).then((def: any) => {
-              if (def) alert(`Definition of ${word}:\n\n${def}`);
-              else alert(`No definition found for "${word}"`);
-           });
-           setSelectionPos(null);
+          if (editingAnnoId) return; // Hide for editing existing
+          const word = window.getSelection()?.toString().trim();
+          if (word) window.ipcRenderer.invoke('dictionary:define', word).then((def: any) => {
+            if (def) alert(`Definition of ${word}:\n\n${def}`);
+            else alert(`No definition found for "${word}"`);
+          });
+          setSelectionPos(null);
         }}
         onCite={() => {
-           if (editingAnnoId) return; // Hide for editing existing
-           if (currentSelection) {
-             const citation = generateCitation('APA', { title: fileName, author: 'Unknown' }, currentSelection.text.trim());
-             navigator.clipboard.writeText(citation).then(() => {
-               alert('Citation (APA) copied to clipboard!');
-             });
-           }
-           setSelectionPos(null);
+          if (editingAnnoId) return; // Hide for editing existing
+          if (currentSelection) {
+            const citation = generateCitation('APA', { title: fileName, author: 'Unknown' }, currentSelection.text.trim());
+            navigator.clipboard.writeText(citation).then(() => {
+              alert('Citation (APA) copied to clipboard!');
+            });
+          }
+          setSelectionPos(null);
         }}
         onRemove={editingAnnoId ? async () => {
-           await window.dbApi.deleteAnnotation(editingAnnoId);
-           setAnnotations(prev => prev.filter(a => a.id !== editingAnnoId));
-           setSelectionPos(null);
-           setEditingAnnoId(null);
+          await window.dbApi.deleteAnnotation(editingAnnoId);
+          setAnnotations(prev => prev.filter(a => a.id !== editingAnnoId));
+          setSelectionPos(null);
+          setEditingAnnoId(null);
         } : undefined}
         onClearFormat={async () => {
-           if (!currentSelection) return;
-           const overlappingAnnoIds: number[] = [];
-           const selRects = currentSelection.rects;
-           
-           const pageAnnos = annotations.filter(a => {
-              try { return JSON.parse(a.locator).pageNum === currentSelection.pageNum; } catch { return false; }
-           });
-           
-           for (const anno of pageAnnos) {
-              try {
-                 const loc = JSON.parse(anno.locator);
-                 let overlaps = false;
-                 for (const r1 of loc.rects) {
-                    for (const r2 of selRects) {
-                       // Check for rectangle intersection
-                       if (!(r1.left > r2.left + r2.width || 
-                             r1.left + r1.width < r2.left || 
-                             r1.top > r2.top + r2.height ||
-                             r1.top + r1.height < r2.top)) {
-                          overlaps = true;
-                          break;
-                       }
-                    }
-                    if (overlaps) break;
-                 }
-                 if (overlaps) overlappingAnnoIds.push(anno.id);
-              } catch {}
-           }
-           
-           for (const id of overlappingAnnoIds) {
-              await window.dbApi.deleteAnnotation(id);
-           }
-           if (overlappingAnnoIds.length > 0) {
-              setAnnotations(prev => prev.filter(a => !overlappingAnnoIds.includes(a.id)));
-           }
-           setSelectionPos(null);
-           window.getSelection()?.removeAllRanges();
+          if (!currentSelection) return;
+          const overlappingAnnoIds: number[] = [];
+          const selRects = currentSelection.rects;
+
+          const pageAnnos = annotations.filter(a => {
+            try { return JSON.parse(a.locator).pageNum === currentSelection.pageNum; } catch { return false; }
+          });
+
+          for (const anno of pageAnnos) {
+            try {
+              const loc = JSON.parse(anno.locator);
+              let overlaps = false;
+              for (const r1 of loc.rects) {
+                for (const r2 of selRects) {
+                  // Check for rectangle intersection
+                  if (!(r1.left > r2.left + r2.width ||
+                    r1.left + r1.width < r2.left ||
+                    r1.top > r2.top + r2.height ||
+                    r1.top + r1.height < r2.top)) {
+                    overlaps = true;
+                    break;
+                  }
+                }
+                if (overlaps) break;
+              }
+              if (overlaps) overlappingAnnoIds.push(anno.id);
+            } catch { }
+          }
+
+          for (const id of overlappingAnnoIds) {
+            await window.dbApi.deleteAnnotation(id);
+          }
+          if (overlappingAnnoIds.length > 0) {
+            setAnnotations(prev => prev.filter(a => !overlappingAnnoIds.includes(a.id)));
+          }
+          setSelectionPos(null);
+          window.getSelection()?.removeAllRanges();
         }}
       />
 
       {showSidebar && (
-        <AnnotationSidebar 
-          filePath={filePath} 
-          isOpen={showSidebar} 
-          onClose={() => setShowSidebar(false)} 
+        <AnnotationSidebar
+          filePath={filePath}
+          isOpen={showSidebar}
+          onClose={() => setShowSidebar(false)}
         />
       )}
 
@@ -893,14 +911,14 @@ const PDFViewer: React.FC<PDFViewerProps> = ({ filePath, initialPage }) => {
           y={notePopoverPos.y}
           initialNote={notePopoverPos.note}
           onSave={async (note) => {
-             await window.dbApi.updateAnnotationNote(notePopoverPos.annoId, note);
-             setAnnotations(prev => prev.map(a => a.id === notePopoverPos.annoId ? { ...a, note_content: note } : a));
-             setNotePopoverPos(null);
+            await window.dbApi.updateAnnotationNote(notePopoverPos.annoId, note);
+            setAnnotations(prev => prev.map(a => a.id === notePopoverPos.annoId ? { ...a, note_content: note } : a));
+            setNotePopoverPos(null);
           }}
           onDelete={async () => {
-             await window.dbApi.deleteAnnotation(notePopoverPos.annoId);
-             setAnnotations(prev => prev.filter(a => a.id !== notePopoverPos.annoId));
-             setNotePopoverPos(null);
+            await window.dbApi.deleteAnnotation(notePopoverPos.annoId);
+            setAnnotations(prev => prev.filter(a => a.id !== notePopoverPos.annoId));
+            setNotePopoverPos(null);
           }}
           onClose={() => setNotePopoverPos(null)}
         />

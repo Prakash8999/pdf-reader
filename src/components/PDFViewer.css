@@ -185,8 +185,8 @@
 }
 
 .textLayer ::selection {
-  background: rgba(108, 92, 231, 0.4) !important; /* Match var(--accent-primary) */
-  color: transparent;
+  background: var(--accent-primary, #3b82f6) !important;
+  color: white !important;
 }
 
 .loading-spinner {
@@ -198,29 +198,27 @@
   font-size: 1.1rem;
 }
 .search-highlight-rect {
-  background-color: var(--search-match-bg, #feca57);
+  background-color: var(--search-match-bg, rgba(59, 130, 246, 0.4));
   mix-blend-mode: multiply;
-  opacity: 0.4;
   border-radius: 3px;
   transition: all 0.2s ease-in-out;
 }
 
 .search-highlight-rect.active {
-  background-color: var(--search-match-active-bg, #ff9f43);
-  opacity: 0.8;
-  box-shadow: 0 0 0 3px var(--search-match-shadow, rgba(255, 159, 67, 0.5));
+  background-color: var(--search-match-active-bg, rgba(59, 130, 246, 0.8));
+  box-shadow: 0 0 0 3px var(--search-match-shadow, rgba(59, 130, 246, 0.5));
   animation: pulse-search 1.5s infinite;
 }
 
 @keyframes pulse-search {
-  0% { box-shadow: 0 0 0 0 var(--search-match-shadow, rgba(255, 159, 67, 0.7)); }
-  70% { box-shadow: 0 0 0 6px rgba(255, 159, 67, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 159, 67, 0); }
+  0% { box-shadow: 0 0 0 0 var(--search-match-shadow, rgba(59, 130, 246, 0.7)); }
+  70% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
 
 :root[data-theme="light"] .search-highlight-rect {
-  --search-match-bg: #74b9ff;
-  --search-match-active-bg: #0984e3;
-  --search-match-shadow: rgba(9, 132, 227, 0.5);
+  --search-match-bg: rgba(59, 130, 246, 0.4);
+  --search-match-active-bg: rgba(59, 130, 246, 0.8);
+  --search-match-shadow: rgba(59, 130, 246, 0.5);
 }
 
